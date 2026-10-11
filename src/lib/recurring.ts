@@ -1,4 +1,4 @@
-import type { Expense, RecurringExpense } from "./api";
+import type { Category, Expense, RecurringExpense } from "./api";
 import { isoDate, parseIso } from "./loans";
 
 /** Stałe wydatki bez konta: szablony w przeglądarce, wpisy dopisywane do lokalnego rejestru (te same reguły co `app/recurring.py`). */
@@ -28,6 +28,28 @@ export function dueDates(dayOfMonth: number, start: string, generatedThrough: st
     if (m > 11) [y, m] = [y + 1, 0];
   }
   return out;
+}
+
+/** Najbliższy termin płatności po dzisiejszym dniu (wpis z dzisiejszą datą powstaje od razu, więc dziś się nie liczy). */
+export function nextDueDate(dayOfMonth: number, today: Date = new Date()): Date {
+  const thisMonth = dueDate(today.getFullYear(), today.getMonth(), dayOfMonth);
+  return isoDate(thisMonth) > isoDate(today) ? thisMonth : dueDate(today.getFullYear(), today.getMonth() + 1, dayOfMonth);
+}
+
+export interface PlannedRecurring {
+  template: RecurringExpense;
+  due: Date;
+}
+
+/**
+ * Aktywne stałe wydatki kategorii, które nie mają jeszcze wpisu w tym miesiącu (np. dodane przed terminem płatności):
+ * pokazujemy je w drzewku jako zaplanowane, od najbliższego terminu. Nie wchodzą do sum wydanych.
+ */
+export function plannedFor(templates: RecurringExpense[], monthEntries: Expense[], category: Category, today: Date = new Date()): PlannedRecurring[] {
+  return templates
+    .filter((t) => t.active && t.category === category && !monthEntries.some((e) => e.source_type === "RECURRING" && e.source_id === t.id))
+    .map((template) => ({ template, due: nextDueDate(template.day_of_month, today) }))
+    .sort((a, b) => a.due.getTime() - b.due.getTime());
 }
 
 /** Dopisuje brakujące wpisy ze szablonów do rejestru; zwraca nowy rejestr, szablony i liczbę dopisanych wpisów. */

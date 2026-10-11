@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, ChevronRightIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, PencilIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -9,9 +9,11 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
+import ExpenseEditForm from "@/components/ExpenseEditForm";
 import ImportButton from "@/components/ImportButton";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
+import PlannedRecurringList from "@/components/PlannedRecurringList";
 import RecurringCard from "@/components/RecurringCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,8 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
 import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
+import { plannedFor } from "@/lib/recurring";
 import { loanKey, useLedger } from "@/lib/use-ledger";
 import { useRecurring } from "@/lib/use-recurring";
 import { cn } from "@/lib/utils";
@@ -48,6 +52,11 @@ const COLORS: Record<Category, string> = {
 const entriesLabel = (n: number) =>
   n === 1 ? "1 wpis" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} wpisy` : `${n} wpisów`;
 
+const installmentsLabel = (n: number) => (n === 1 ? "1 rata" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} raty` : `${n} rat`);
+
+const plannedLabel = (n: number) =>
+  n === 1 ? "1 zaplanowany" : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? `${n} zaplanowane` : `${n} zaplanowanych`;
+
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00`).toLocaleDateString("pl-PL", { month: "short", year: "2-digit" });
 
 export default function ExpensesPage() {
@@ -55,8 +64,10 @@ export default function ExpensesPage() {
   const ledger = useLedger();
   const recurring = useRecurring(ledger.reload);
   const [category, setCategory] = useState<Category>("FUN");
+  const [suggesting, setSuggesting] = useState(false);
   // które kategorie w podsumowaniu miesiąca są rozwinięte (pokazują swoje wpisy)
   const [open, setOpen] = useState<Partial<Record<Category, boolean>>>({});
+  const [editing, setEditing] = useState<string | null>(null); // id wpisu, który jest teraz edytowany
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
     defaultValues: { amount: "", note: "", spent_on: todayIso() },
@@ -65,6 +76,7 @@ export default function ExpensesPage() {
     register,
     handleSubmit,
     reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = form;
 
@@ -89,10 +101,27 @@ export default function ExpensesPage() {
   });
 
   // rata opłacona = wpis LOAN w miesiącu jej terminu
-  const isPaid = (loan: { id?: string; name: string }, due: Date) =>
+  const isPaid = (loan: { id?: string; name: string; installment_amount: number }, due: Date) =>
     ledger.allItems.some((e) => e.source_type === "LOAN" && e.source_id === loanKey(loan) && e.spent_on.slice(0, 7) === isoDate(due).slice(0, 7));
 
+  // nieopłacone raty pokazujemy też w drzewie, pod Potrzebami (opłacone są już na liście jako wpisy "rata")
+  const dueLoans = upcoming.filter(({ loan, next }) => !isPaid(loan, next.date));
+
   const selected = rows.find((r) => r.c === category);
+
+  async function suggestExpenseCategory() {
+    const note = getValues("note").trim();
+    if (!note) return;
+    setSuggesting(true);
+    try {
+      const suggestion = await suggestCategory(note);
+      if (suggestion) setCategory(suggestion);
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się zasugerować kategorii"));
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function submit(v: FormOut) {
     try {
@@ -172,6 +201,17 @@ export default function ExpensesPage() {
                 <Field label="Notatka (opcjonalnie)" error={errors.note?.message}>
                   {(p) => <Input {...p} placeholder="np. kino" className="h-11" {...register("note")} />}
                 </Field>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={suggesting}
+                  onClick={suggestExpenseCategory}
+                  className="w-fit"
+                >
+                  <SparklesIcon className="size-4" />
+                  {suggesting ? "Analizuję..." : "Zaproponuj kategorię AI"}
+                </Button>
                 <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
                   Dopisz wydatek
                 </Button>
@@ -238,20 +278,26 @@ export default function ExpensesPage() {
               <CardContent className="grid gap-5">
                 {rows.map((r) => {
                   const entries = ledger.items.filter((e) => e.category === r.c);
+                  const loanRows = r.c === "NEEDS" ? dueLoans : [];
+                  const planned = plannedFor(recurring.items, ledger.items, r.c); // stałe wydatki czekające na termin w tym miesiącu
                   const isOpen = !!open[r.c];
                   return (
-                    <div key={r.c} className="grid gap-1.5" data-testid={`usage-${r.c}`}>
+                    <div key={r.c} className="grid min-w-0 gap-1.5" data-testid={`usage-${r.c}`}>
                       <button
                         type="button"
                         aria-expanded={isOpen}
                         aria-controls={`entries-${r.c}`}
                         onClick={() => setOpen((o) => ({ ...o, [r.c]: !o[r.c] }))}
-                        className="flex w-full items-center justify-between gap-2 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="flex w-full flex-wrap items-center justify-between gap-x-2 gap-y-0.5 rounded-md py-0.5 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <span className="flex min-w-0 items-center gap-1.5 font-medium">
                           <ChevronRightIcon className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-90")} aria-hidden />
                           {CATEGORY_INFO[r.c].label}
-                          <span className="text-xs font-normal text-muted-foreground">({entriesLabel(entries.length)})</span>
+                          <span className="text-xs font-normal text-muted-foreground">
+                            ({entriesLabel(entries.length)}
+                            {loanRows.length > 0 && `, ${installmentsLabel(loanRows.length)} do zapłaty`}
+                            {planned.length > 0 && `, ${plannedLabel(planned.length)}`})
+                          </span>
                         </span>
                         <span className={cn("shrink-0 tabular-nums text-muted-foreground", r.usage != null && r.usage > 100 && "text-destructive")}>
                           {money(r.spent, currency)} / {money(r.amount, currency)}
@@ -273,13 +319,59 @@ export default function ExpensesPage() {
                       </div>
                       <DailyLimit budget={r.amount} variableSpent={r.fromLedger} fixed={r.fixed} currency={currency} testId={`daily-${r.c}`} />
                       {isOpen && (
-                        <div id={`entries-${r.c}`} className="mt-1 ml-2 border-l pl-3">
-                          {entries.length === 0 ? (
+                        <div id={`entries-${r.c}`} className="mt-1 ml-2 min-w-0 border-l pl-3">
+                          {loanRows.length > 0 && (
+                            <ul className="divide-y border-b" data-testid={`loan-rows-${r.c}`} aria-label="Raty do zapłaty">
+                              {loanRows.map(({ loan, next }, i) => (
+                                <li key={`${loan.name}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
+                                  <div className="min-w-0 flex-1 basis-44">
+                                    <p className="truncate text-sm font-medium">
+                                      {loan.name}
+                                      <span className="ml-2 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" data-testid="loan-row-status">
+                                        rata do zapłaty
+                                      </span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                                    </p>
+                                  </div>
+                                  <span className="tabular-nums text-sm font-semibold">{money(loan.installment_amount, currency)}</span>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    aria-label={`Zapłacona: rata ${loan.name}`}
+                                    onClick={() =>
+                                      ledger
+                                        .payLoan(loan, isoDate(next.date))
+                                        .then(() => toast.success("Rata oznaczona jako zapłacona"))
+                                        .catch((err) => toast.error(errorMessage(err)))
+                                    }
+                                  >
+                                    Zapłacona
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          <PlannedRecurringList planned={planned} category={r.c} currency={currency} />
+                          {entries.length === 0 && loanRows.length === 0 && planned.length === 0 ? (
                             <p className="py-1 text-sm text-muted-foreground">Brak wpisów w tej kategorii.</p>
-                          ) : (
+                          ) : entries.length === 0 ? null : (
                             <ul className="divide-y" data-testid={`expense-list-${r.c}`}>
                               {entries.map((e) => (
                                 <li key={e.id} className="flex items-center gap-2 py-1.5">
+                                  {editing === e.id ? (
+                                    <ExpenseEditForm
+                                      entry={e}
+                                      onCancel={() => setEditing(null)}
+                                      onSave={async (v) => {
+                                        await ledger.update(e.id, v);
+                                        setEditing(null);
+                                        toast.success("Wydatek zapisany");
+                                      }}
+                                    />
+                                  ) : (
+                                  <>
                                   <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-medium">
                                       {e.note || CATEGORY_INFO[e.category].label}
@@ -292,6 +384,17 @@ export default function ExpensesPage() {
                                     <p className="text-xs text-muted-foreground">{new Date(`${e.spent_on}T12:00:00`).toLocaleDateString("pl-PL")}</p>
                                   </div>
                                   <span className="tabular-nums text-sm font-semibold">{money(e.amount, currency)}</span>
+                                  {/* wpis raty jest powiązany z zobowiązaniem: zmienia się go przez "Zapłacona", nie edycją */}
+                                  {e.source_type !== "LOAN" && (
+                                    <Button
+                                      variant="ghost"
+                                      className="size-9"
+                                      aria-label={`Edytuj wydatek ${e.note || CATEGORY_INFO[e.category].label}`}
+                                      onClick={() => setEditing(e.id)}
+                                    >
+                                      <PencilIcon />
+                                    </Button>
+                                  )}
                                   <Button
                                     variant="ghost"
                                     className="size-9"
@@ -300,6 +403,8 @@ export default function ExpensesPage() {
                                   >
                                     <Trash2Icon />
                                   </Button>
+                                  </>
+                                  )}
                                 </li>
                               ))}
                             </ul>

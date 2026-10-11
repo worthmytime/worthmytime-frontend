@@ -1,12 +1,14 @@
 "use client";
 
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
 import { Controller, useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { suggestCategory } from "@/lib/ai";
 import { CATEGORY_INFO, FREQ_LABEL } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { money } from "@/lib/format";
@@ -45,6 +47,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
   const type = watch("type");
   const category = watch("category");
   const planned = watch("monthly_contribution");
+  const [suggesting, setSuggesting] = useState(false);
   const { profile } = useApp();
   const currency = profile?.currency ?? "PLN";
   const availability = useCategoryAvailability();
@@ -52,6 +55,20 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
   const plannedNumber = Number(String(planned ?? "").replace(",", "."));
   const overMax = free != null && planned !== "" && Number.isFinite(plannedNumber) && plannedNumber > free;
   const costsError = errors.costs?.root?.message ?? (errors.costs as { message?: string } | undefined)?.message;
+
+  async function suggestCalcCategory() {
+    const name = watch("name").trim();
+    if (!name) return;
+    setSuggesting(true);
+    try {
+      const suggestion = await suggestCategory(name);
+      if (suggestion) setValue("category", suggestion, { shouldDirty: true });
+    } catch {
+      // suggestion is best-effort, no toast needed
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   function changeType(next: CalcType) {
     if (next === type) return;
@@ -111,7 +128,20 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
       )}
 
       <fieldset className="grid gap-2">
-        <legend className="mb-1 text-sm font-medium">Kategoria budżetu (opcjonalnie)</legend>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <legend className="text-sm font-medium">Kategoria budżetu (opcjonalnie)</legend>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            disabled={suggesting || !watch("name").trim()}
+            onClick={suggestCalcCategory}
+          >
+            <SparklesIcon className="size-3.5" />
+            {suggesting ? "Analizuję..." : "Zaproponuj AI"}
+          </Button>
+        </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Kategoria budżetu">
           {([""].concat(BUDGET_CATEGORIES) as ("" | (typeof BUDGET_CATEGORIES)[number])[]).map((c) => {
             const active = category === c;

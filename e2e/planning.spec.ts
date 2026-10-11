@@ -272,6 +272,53 @@ test("lista życzeń: usuwanie rozstrzygniętych pozycji z potwierdzeniem", asyn
   await expect(page.getByRole("group", { name: /Potwierdź usunięcie: Słuchawki/ })).not.toContainText("zaoszczędzonej");
 });
 
+test("raty w drzewie wydatków: nieopłacone pod Potrzebami z terminem, opłacenie jednej nie rusza drugiej", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
+  await withLocalProfile(page);
+  await page.addInitScript(() => {
+    if (window.localStorage.getItem("wmt_budget")) return; // nie nadpisuj stanu po odświeżeniu strony
+    window.localStorage.setItem(
+      "wmt_budget",
+      JSON.stringify({
+        percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+        spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+        // dwie pożyczki o tej samej nazwie i tym samym terminie, różne raty
+        loans: [
+          { name: "Pożyczka gotówkowa", installment_amount: 540.18, installments_left: 12, payment_day: 11 },
+          { name: "Pożyczka gotówkowa", installment_amount: 926.73, installments_left: 24, payment_day: 11 },
+        ],
+      }),
+    );
+  });
+  await page.goto("/expenses");
+
+  const needs = page.getByTestId("usage-NEEDS");
+  await expect(needs).toContainText("2 raty do zapłaty");
+  await needs.getByRole("button", { expanded: false }).click();
+
+  const rows = page.getByTestId("loan-rows-NEEDS");
+  await expect(rows.locator("li")).toHaveCount(2);
+  await expect(rows).toContainText("rata do zapłaty");
+  await expect(rows).toContainText(/540,18\szł/);
+  await expect(rows).toContainText(/926,73\szł/);
+  await expect(rows).toContainText("11 października 2026");
+  await expect(rows).toContainText("za 4 dni");
+
+  // opłacenie jednej raty (kwota 540,18) nie oznacza drugiej, o tej samej nazwie
+  await rows.locator("li", { hasText: "540,18" }).getByRole("button", { name: "Zapłacona: rata Pożyczka gotówkowa" }).click();
+  await expect(rows.locator("li")).toHaveCount(1);
+  await expect(rows).toContainText(/926,73\szł/);
+  await expect(needs).toContainText("1 rata do zapłaty");
+  const list = page.getByTestId("expense-list-NEEDS");
+  await expect(list).toContainText("Rata: Pożyczka gotówkowa");
+  await expect(list.getByTestId("expense-source")).toHaveText("rata");
+
+  // opłacona rata nie wraca do listy "do zapłaty" po odświeżeniu
+  await page.reload();
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  await expect(page.getByTestId("loan-rows-NEEDS").locator("li")).toHaveCount(1);
+});
+
 test("lista życzeń: ostygnięcie, odpuszczenie i statystyka oszczędności", async ({ page }) => {
   await asLoggedIn(page);
   const work = { ...RESULT.work, hours: 61.9 };

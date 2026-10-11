@@ -24,15 +24,23 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # build produkcyjny jako osobny etap: błąd kompilacji widać tu, a nie jako "serwer nie wstał" w testach
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_DIST_DIR: .next-e2e
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      # build produkcyjny + testy e2e na zamockowanym API (desktop i mobile)
+      # testy e2e (desktop i mobile) na zamockowanym API, uruchamiane na gotowym buildzie
       - name: E2E
         run: npm run test:e2e
         env:
           CI: "true"
-          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+          E2E_PREBUILT: "1"
+          NEXT_DIST_DIR: .next-e2e
 
       - uses: actions/upload-artifact@v4
         if: failure()
