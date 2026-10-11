@@ -51,6 +51,16 @@ export interface RecurringExpense {
 
 export type RecurringIn = Pick<RecurringExpense, "name" | "category" | "amount" | "day_of_month" | "active">;
 
+/** Szablon szybkiego wydatku (np. kawa): jedno dotknięcie dopisuje wpis do rejestru. */
+export interface ExpenseTemplate {
+  id: string;
+  name: string;
+  category: Category;
+  amount: number;
+}
+
+export type ExpenseTemplateIn = Omit<ExpenseTemplate, "id">;
+
 export interface MonthSummary {
   month: string; // YYYY-MM
   totals: Record<Category, number>;
