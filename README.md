@@ -73,3 +73,5 @@ Obraz buduje workflow `Publish Docker image to GHCR` (po zielonych testach), bez
 
 Tagi są zawsze po SHA (nigdy `latest`), więc wiadomo dokładnie, jaki kod działa.
 Dla `stage` adres API do obrazu pochodzi ze zmiennej repozytorium `STAGE_NEXT_PUBLIC_API_URL` (produkcja: `NEXT_PUBLIC_API_URL`), więc obraz testowy nie sięga po produkcyjne API. Ustaw ją w *Settings > Secrets and variables > Actions > Variables*.
+
+<!-- Update by poewer -->
