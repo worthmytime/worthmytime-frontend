@@ -39,6 +39,8 @@ interface Payload {
 
 export default function WishlistPage() {
   const { ready, loggedIn, profile } = useApp();
+  // pozycja rozstrzygnięta, przy której czeka potwierdzenie usunięcia
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const [data, setData] = useState<Payload | null>(null);
   const [suggestedCategory, setSuggestedCategory] = useState<Category | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -113,7 +115,9 @@ export default function WishlistPage() {
   async function remove(item: WishlistItem) {
     try {
       await api(`/wishlist/${item.id}`, { method: "DELETE" });
+      setConfirmId(null);
       await load();
+      toast.success(`Usunięto: ${item.name}`);
     } catch (e) {
       toast.error(errorMessage(e));
     }
@@ -267,12 +271,39 @@ export default function WishlistPage() {
             <CardContent>
               <ul className="divide-y text-sm">
                 {decided.map((i) => (
-                  <li key={i.id} className="flex items-center justify-between gap-3 py-2">
-                    <span className="min-w-0 truncate">{i.name}</span>
-                    <span className="flex shrink-0 items-center gap-2 tabular-nums text-muted-foreground">
-                      {money(i.price, currency)}
-                      <Badge variant={i.status === "DROPPED" ? "secondary" : "outline"}>{i.status === "DROPPED" ? "odpuszczone" : "kupione"}</Badge>
-                    </span>
+                  <li key={i.id} className="grid gap-2 py-2" data-testid={`decided-${i.id}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="min-w-0 truncate">{i.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 tabular-nums text-muted-foreground">
+                        {money(i.price, currency)}
+                        <Badge variant={i.status === "DROPPED" ? "secondary" : "outline"}>{i.status === "DROPPED" ? "odpuszczone" : "kupione"}</Badge>
+                        <Button
+                          variant="ghost"
+                          className="size-9"
+                          aria-label={`Usuń rozstrzygniętą pozycję ${i.name}`}
+                          aria-expanded={confirmId === i.id}
+                          onClick={() => setConfirmId(confirmId === i.id ? null : i.id)}
+                        >
+                          <Trash2Icon />
+                        </Button>
+                      </span>
+                    </div>
+                    {confirmId === i.id && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/60 p-2.5 text-xs" role="group" aria-label={`Potwierdź usunięcie: ${i.name}`}>
+                        <span className="min-w-0 flex-1 basis-48 text-muted-foreground">
+                          Usunąć „{i.name}” z listy?
+                          {i.status === "DROPPED" && " Przestanie się liczyć do zaoszczędzonej kwoty."} Tego nie da się cofnąć.
+                        </span>
+                        <span className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setConfirmId(null)}>
+                            Anuluj
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => remove(i)}>
+                            Usuń
+                          </Button>
+                        </span>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

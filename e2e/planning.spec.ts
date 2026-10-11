@@ -227,6 +227,51 @@ test("stałe wydatki i raty (konto): wywołania API i oznaczenie raty identyfika
   await expect.poll(() => paid).toEqual({ paid_on: "2026-10-12" });
 });
 
+test("lista życzeń: usuwanie rozstrzygniętych pozycji z potwierdzeniem", async ({ page }) => {
+  await asLoggedIn(page);
+  const work = { ...RESULT.work, hours: 61.9 };
+  const base = { category: null, cooldown_days: 30, created_at: "2026-09-01T10:00:00Z", ready_at: "2026-10-01T10:00:00Z", days_left: 0, ready: false, work };
+  let items = [
+    { ...base, id: "w1", name: "Monitor (pomyłka)", price: 3000, status: "DROPPED", decided_at: "2026-10-02T10:00:00Z" },
+    { ...base, id: "w2", name: "Słuchawki", price: 450, status: "BOUGHT", decided_at: "2026-10-03T10:00:00Z" },
+  ];
+  await page.route("**/api/v1/wishlist", (r) =>
+    json(r, { items, stats: { dropped_count: items.filter((i) => i.status === "DROPPED").length, dropped_total: 0, dropped_hours: 0, waiting_count: 0, waiting_total: 0, ready_count: 0 }, currency: "PLN" }),
+  );
+  const deleted: string[] = [];
+  await page.route("**/api/v1/wishlist/*", (r) => {
+    if (r.request().method() !== "DELETE") return r.fallback();
+    const id = new URL(r.request().url()).pathname.split("/").pop()!;
+    deleted.push(id);
+    items = items.filter((i) => i.id !== id);
+    return json(r, { deleted: true });
+  });
+
+  await page.goto("/wishlist");
+  const resolved = page.getByRole("region", { name: "Rozstrzygnięte" });
+  await expect(resolved).toContainText("Monitor (pomyłka)");
+  await expect(resolved).toContainText("Słuchawki");
+
+  // najpierw potwierdzenie z informacją o skutku; anulowanie nic nie usuwa
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Monitor (pomyłka)" }).click();
+  const confirm = page.getByRole("group", { name: /Potwierdź usunięcie: Monitor/ });
+  await expect(confirm).toContainText("Przestanie się liczyć do zaoszczędzonej kwoty");
+  await confirm.getByRole("button", { name: "Anuluj" }).click();
+  await expect(confirm).toHaveCount(0);
+  expect(deleted).toEqual([]);
+
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Monitor (pomyłka)" }).click();
+  await page.getByRole("group", { name: /Potwierdź usunięcie: Monitor/ }).getByRole("button", { name: "Usuń", exact: true }).click();
+  await expect.poll(() => deleted).toEqual(["w1"]);
+  await expect(resolved).not.toContainText("Monitor (pomyłka)");
+  await expect(resolved).toContainText("Słuchawki"); // druga pozycja zostaje
+  await expect(page.getByText("Usunięto: Monitor (pomyłka)")).toBeVisible();
+
+  // kupioną pozycję usuwa się bez ostrzeżenia o zaoszczędzonej kwocie
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Słuchawki" }).click();
+  await expect(page.getByRole("group", { name: /Potwierdź usunięcie: Słuchawki/ })).not.toContainText("zaoszczędzonej");
+});
+
 test("raty w drzewie wydatków: nieopłacone pod Potrzebami z terminem, opłacenie jednej nie rusza drugiej", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
   await withLocalProfile(page);
