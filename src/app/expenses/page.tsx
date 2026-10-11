@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, ChevronRightIcon, PencilIcon, SparklesIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, PencilIcon, PlusIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -14,13 +14,14 @@ import ImportButton from "@/components/ImportButton";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import PlannedRecurringList from "@/components/PlannedRecurringList";
+import QuickTemplates from "@/components/QuickTemplates";
 import RecurringCard from "@/components/RecurringCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Category } from "@/lib/api";
+import type { Category, ExpenseTemplate } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { suggestCategory } from "@/lib/ai";
@@ -29,6 +30,7 @@ import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
 import { plannedFor } from "@/lib/recurring";
 import { loanKey, useLedger } from "@/lib/use-ledger";
 import { useRecurring } from "@/lib/use-recurring";
+import { useExpenseTemplates } from "@/lib/use-templates";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -63,6 +65,7 @@ export default function ExpensesPage() {
   const { ready, profile, monthlyIncome, budget, loggedIn } = useApp();
   const ledger = useLedger();
   const recurring = useRecurring(ledger.reload);
+  const templates = useExpenseTemplates(ledger.add, ledger.reload);
   const [category, setCategory] = useState<Category>("FUN");
   const [suggesting, setSuggesting] = useState(false);
   // które kategorie w podsumowaniu miesiąca są rozwinięte (pokazują swoje wpisy)
@@ -77,6 +80,8 @@ export default function ExpensesPage() {
     handleSubmit,
     reset,
     getValues,
+    setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = form;
 
@@ -123,6 +128,27 @@ export default function ExpensesPage() {
     }
   }
 
+  /** Zapisuje bieżący formularz jako szablon: notatka staje się nazwą przycisku. */
+  async function saveTemplate() {
+    clearErrors(["amount", "note"]);
+    const name = getValues("note").trim();
+    const amount = Number(getValues("amount").replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) return setError("amount", { message: "Podaj kwotę większą od zera" });
+    if (!name) return setError("note", { message: "Wpisz w notatce nazwę szablonu, np. kawa" });
+    try {
+      await templates.add({ name: name.slice(0, 100), category, amount });
+      toast.success(`Zapisano szablon: ${name}`);
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się zapisać szablonu"));
+    }
+  }
+
+  async function applyTemplate(t: ExpenseTemplate) {
+    await templates.apply(t);
+    toast.success(`Dopisano: ${t.name}`);
+    setOpen((o) => ({ ...o, [t.category]: true })); // od razu pokaż dopisany wpis w jego kategorii
+  }
+
   async function submit(v: FormOut) {
     try {
       await ledger.add({ category, amount: v.amount, note: v.note || undefined, spent_on: v.spent_on });
@@ -161,7 +187,8 @@ export default function ExpensesPage() {
             <CardHeader>
               <CardTitle className="text-base">Dopisz wydatek</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="grid gap-4">
+              <QuickTemplates items={templates.items} currency={currency} onApply={applyTemplate} onRemove={templates.remove} />
               <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4">
                 <div role="radiogroup" aria-label="Kategoria wydatku" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {BUDGET_CATEGORIES.map((c) => (
@@ -201,17 +228,16 @@ export default function ExpensesPage() {
                 <Field label="Notatka (opcjonalnie)" error={errors.note?.message}>
                   {(p) => <Input {...p} placeholder="np. kino" className="h-11" {...register("note")} />}
                 </Field>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={suggesting}
-                  onClick={suggestExpenseCategory}
-                  className="w-fit"
-                >
-                  <SparklesIcon className="size-4" />
-                  {suggesting ? "Analizuję..." : "Zaproponuj kategorię AI"}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" disabled={suggesting} onClick={suggestExpenseCategory}>
+                    <SparklesIcon className="size-4" />
+                    {suggesting ? "Analizuję..." : "Zaproponuj kategorię AI"}
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void saveTemplate()}>
+                    <PlusIcon className="size-4" />
+                    Zapisz jako szablon
+                  </Button>
+                </div>
                 <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
                   Dopisz wydatek
                 </Button>
