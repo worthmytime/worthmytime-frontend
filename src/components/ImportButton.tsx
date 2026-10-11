@@ -1,6 +1,6 @@
 "use client";
 
-import { FileUpIcon } from "lucide-react";
+import { FileUpIcon, SparklesIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { suggestCategories } from "@/lib/ai";
 import { decodeStatement, loadRules, parseStatement, saveRules, type ImportedExpense, type ImportTx, type ParsedStatement } from "@/lib/ipko";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ export default function ImportButton({ currency, onImport }: Props) {
   const [choices, setChoices] = useState<Record<string, Choice>>({});
   const [includePending, setIncludePending] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -66,6 +68,22 @@ export default function ImportButton({ currency, onImport }: Props) {
   const toImport = groups.filter((g) => choices[g.key] && choices[g.key] !== "SKIP");
   const importCount = toImport.reduce((s, g) => s + g.items.length, 0);
   const importTotal = toImport.reduce((s, g) => s + g.total, 0);
+
+  async function suggestAll() {
+    const unassignedGroups = groups.filter((g) => !choices[g.key]);
+    if (!unassignedGroups.length) return;
+    setSuggesting(true);
+    try {
+      const suggestions = await suggestCategories(
+        unassignedGroups.map((g) => ({ key: g.key, description: g.label })),
+      );
+      setChoices((prev) => ({ ...prev, ...suggestions }));
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się zasugerować kategorii"));
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function submit() {
     setBusy(true);
@@ -116,6 +134,20 @@ export default function ImportButton({ currency, onImport }: Props) {
               każdemu sprzedawcy, a zapamiętamy ją na następny import.
             </DialogDescription>
           </DialogHeader>
+
+          {unassigned > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={suggesting}
+              onClick={suggestAll}
+              className="w-fit"
+            >
+              <SparklesIcon className="size-4" />
+              {suggesting ? "Analizuję..." : "Zaproponuj kategorie AI"}
+            </Button>
+          )}
 
           {pendingCount > 0 && (
             <label className="flex items-start gap-2 text-sm">
