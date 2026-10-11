@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { HourglassIcon, Trash2Icon } from "lucide-react";
+import { HourglassIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -15,9 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type WishlistItem, type WishlistStats } from "@/lib/api";
+import { suggestCategory } from "@/lib/ai";
+import { api, type Category, type WishlistItem, type WishlistStats } from "@/lib/api";
+import { CATEGORY_INFO } from "@/lib/format";
 import { money, num } from "@/lib/format";
-import { errorMessage, requiredNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, requiredNumber } from "@/lib/forms";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -38,6 +40,8 @@ interface Payload {
 export default function WishlistPage() {
   const { ready, loggedIn, profile } = useApp();
   const [data, setData] = useState<Payload | null>(null);
+  const [suggestedCategory, setSuggestedCategory] = useState<Category | null>(null);
+  const [suggesting, setSuggesting] = useState(false);
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", price: "", cooldown_days: "30" },
@@ -48,6 +52,7 @@ export default function WishlistPage() {
     reset,
     setValue,
     getValues,
+    watch,
     formState: { errors, isSubmitting },
   } = form;
 
@@ -67,10 +72,27 @@ export default function WishlistPage() {
   if (!loggedIn) return <LoginPrompt what="Lista życzeń" />;
   if (!profile) return <OnboardingCard />;
 
+  async function suggestWishlistCategory() {
+    const name = getValues("name").trim();
+    if (!name) return;
+    setSuggesting(true);
+    try {
+      const suggestion = await suggestCategory(name);
+      setSuggestedCategory(suggestion);
+    } catch {
+      // best-effort
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function submit(v: FormOut) {
     try {
-      await api("/wishlist", { body: v });
+      await api("/wishlist", {
+        body: { ...v, ...(suggestedCategory ? { category: suggestedCategory } : {}) },
+      });
       toast.success("Dodano do listy życzeń");
+      setSuggestedCategory(null);
       reset({ name: "", price: "", cooldown_days: getValues("cooldown_days") });
       await load();
     } catch (e) {
@@ -133,6 +155,40 @@ export default function WishlistPage() {
             <Field label="Co chcesz kupić?" error={errors.name?.message}>
               {(p) => <Input {...p} placeholder="np. PlayStation" autoComplete="off" className="h-11" {...register("name")} />}
             </Field>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-muted-foreground">Kategoria budżetu (opcjonalnie)</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  disabled={suggesting || !watch("name").trim()}
+                  onClick={suggestWishlistCategory}
+                >
+                  <SparklesIcon className="size-3.5" />
+                  {suggesting ? "Analizuję..." : "Zaproponuj AI"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="radiogroup" aria-label="Kategoria budżetu">
+                {BUDGET_CATEGORIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={suggestedCategory === c}
+                    onClick={() => setSuggestedCategory((prev) => (prev === c ? null : c))}
+                    className={`min-h-9 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                      suggestedCategory === c
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {CATEGORY_INFO[c].label}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Cena" error={errors.price?.message}>
                 {(p) => <Input {...p} inputMode="decimal" placeholder="2500" className="h-11" {...register("price")} />}

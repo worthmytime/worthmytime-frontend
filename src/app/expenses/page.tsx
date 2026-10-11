@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckIcon, ChevronRightIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, PencilIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
 import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
 import { plannedFor } from "@/lib/recurring";
@@ -63,6 +64,7 @@ export default function ExpensesPage() {
   const ledger = useLedger();
   const recurring = useRecurring(ledger.reload);
   const [category, setCategory] = useState<Category>("FUN");
+  const [suggesting, setSuggesting] = useState(false);
   // które kategorie w podsumowaniu miesiąca są rozwinięte (pokazują swoje wpisy)
   const [open, setOpen] = useState<Partial<Record<Category, boolean>>>({});
   const [editing, setEditing] = useState<string | null>(null); // id wpisu, który jest teraz edytowany
@@ -74,6 +76,7 @@ export default function ExpensesPage() {
     register,
     handleSubmit,
     reset,
+    getValues,
     formState: { errors, isSubmitting },
   } = form;
 
@@ -105,6 +108,20 @@ export default function ExpensesPage() {
   const dueLoans = upcoming.filter(({ loan, next }) => !isPaid(loan, next.date));
 
   const selected = rows.find((r) => r.c === category);
+
+  async function suggestExpenseCategory() {
+    const note = getValues("note").trim();
+    if (!note) return;
+    setSuggesting(true);
+    try {
+      const suggestion = await suggestCategory(note);
+      if (suggestion) setCategory(suggestion);
+    } catch (e) {
+      toast.error(errorMessage(e, "Nie udało się zasugerować kategorii"));
+    } finally {
+      setSuggesting(false);
+    }
+  }
 
   async function submit(v: FormOut) {
     try {
@@ -184,6 +201,17 @@ export default function ExpensesPage() {
                 <Field label="Notatka (opcjonalnie)" error={errors.note?.message}>
                   {(p) => <Input {...p} placeholder="np. kino" className="h-11" {...register("note")} />}
                 </Field>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={suggesting}
+                  onClick={suggestExpenseCategory}
+                  className="w-fit"
+                >
+                  <SparklesIcon className="size-4" />
+                  {suggesting ? "Analizuję..." : "Zaproponuj kategorię AI"}
+                </Button>
                 <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>
                   Dopisz wydatek
                 </Button>
