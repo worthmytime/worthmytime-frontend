@@ -41,6 +41,6 @@ test("budżet: priorytety 1-4 bez luki, a powiadomienie nie zasłania paska nawi
   const toast = page.locator("[data-sonner-toast]").first();
   await expect(toast).toContainText("Budżet zapisany");
   const header = await page.locator("header").first().boundingBox();
-  const box = await toast.boundingBox();
-  expect(box!.y).toBeGreaterThanOrEqual(header!.y + header!.height); // pod paskiem, nie na nim
+  // powiadomienie wjeżdża z góry, więc czekamy, aż stanie na miejscu: pod paskiem, nie na nim
+  await expect.poll(async () => (await toast.boundingBox())?.y ?? 0, { timeout: 4000 }).toBeGreaterThanOrEqual(header!.y + header!.height);
 });
