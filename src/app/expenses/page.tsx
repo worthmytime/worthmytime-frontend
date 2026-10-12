@@ -178,7 +178,7 @@ export default function ExpensesPage() {
         </div>
         <div className="flex flex-col items-start gap-1 sm:items-end">
           <ImportButton currency={currency} onImport={ledger.importMany} />
-          <span className="text-xs text-muted-foreground">Obsługiwany format: wyciąg z iPKO (CSV)</span>
+          <span className="text-xs text-muted-foreground">Historia transakcji z dowolnego banku: CSV, TXT lub XLSX</span>
         </div>
       </div>
 

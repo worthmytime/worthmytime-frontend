@@ -94,7 +94,7 @@ test("import iPKO: blokady można wyłączyć, a plik spoza iPKO daje czytelny b
   await page.goto("/expenses");
 
   await page.getByTestId("import-file").setInputFiles(NOT_A_STATEMENT);
-  await expect(page.getByText(/To nie wygląda na wyciąg z iPKO/)).toBeVisible();
+  await expect(page.getByText(/Nie udało się rozpoznać w pliku kolumn z datą i kwotą/)).toBeVisible();
   await expect(page.getByTestId("import-dialog")).toBeHidden();
 
   await page.getByTestId("import-file").setInputFiles(FILE);
