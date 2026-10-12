@@ -26,7 +26,7 @@ import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
-import { dateLabel, dueText, installmentsToShow, isoDate } from "@/lib/loans";
+import { countsThisMonth, dateLabel, dueText, installmentsToShow, isoDate } from "@/lib/loans";
 import { plannedFor } from "@/lib/recurring";
 import { loanKey, useLedger } from "@/lib/use-ledger";
 import { useRecurring } from "@/lib/use-recurring";
@@ -92,7 +92,9 @@ export default function ExpensesPage() {
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
 
   const currency = profile.currency;
-  const loansTotal = (budget?.loans ?? []).reduce((s, l) => s + l.installment_amount, 0);
+  // raty obciążające ten miesiąc: z API (konto) albo liczone tą samą regułą lokalnie; spłacone wcześniej kredyty się nie liczą
+  const loansTotal =
+    ledger.serverBudget?.monthly_loans ?? (budget?.loans ?? []).filter((l) => countsThisMonth(l)).reduce((s, l) => s + l.installment_amount, 0);
   const percentages = budget?.percentages ?? { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 };
   // raty kredytów: z bieżącego miesiąca (także po terminie) i najbliższa kolejna, od najwcześniejszej
   const upcoming = (budget?.loans ?? [])
@@ -304,7 +306,9 @@ export default function ExpensesPage() {
               <CardHeader>
                 <CardTitle className="text-base">Ten miesiąc</CardTitle>
                 <CardDescription>
-                  Wydane łącznie z rejestru: {money(ledger.total, currency)}. Rozwiń kategorię, żeby zobaczyć jej wpisy.
+                  Wydane łącznie: <span data-testid="month-total">{money(ledger.total + loansTotal, currency)}</span>
+                  {loansTotal > 0 && ` (rejestr ${money(ledger.total, currency)} + raty ${money(loansTotal, currency)})`}. Rozwiń kategorię, żeby zobaczyć jej
+                  wpisy.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-5">

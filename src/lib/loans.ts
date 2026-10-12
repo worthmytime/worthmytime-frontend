@@ -41,6 +41,15 @@ export function remainingInstallments(loan: LoanDates, today = new Date()): numb
   return count;
 }
 
+/**
+ * Czy rata kredytu obciąża budżet bieżącego miesiąca (ta sama reguła co w API).
+ * Rata wymagalna w tym miesiącu liczy się przez cały miesiąc, także po dniu płatności i także gdy była ostatnia;
+ * kredyt spłacony przed tym miesiącem nie liczy się wcale.
+ */
+export function countsThisMonth(loan: LoanDates, today = new Date()): boolean {
+  return remainingInstallments(loan, new Date(today.getFullYear(), today.getMonth(), 1, 12)) > 0;
+}
+
 export function lastPaymentDate(loan: LoanDates, today = new Date()): Date | null {
   const left = remainingInstallments(loan, today);
   if (left <= 0) return null;
