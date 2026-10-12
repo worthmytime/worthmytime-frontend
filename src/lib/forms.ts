@@ -142,6 +142,11 @@ export const budgetSchema = z
     pct_FUTURE: requiredNumber("Przyszłość").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
     pct_GOALS: requiredNumber("Cele").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
     pct_FUN: requiredNumber("Przyjemności").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
+    // przenoszenie niewykorzystanych środków na kolejny miesiąc (tylko konto)
+    rollover_NEEDS: z.boolean(),
+    rollover_FUTURE: z.boolean(),
+    rollover_GOALS: z.boolean(),
+    rollover_FUN: z.boolean(),
     loans: z.array(
       z.object({
         name: z.string().trim().min(1, "Podaj nazwę").max(100),
@@ -191,6 +196,10 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
     pct_FUTURE: String(p.percentages.FUTURE),
     pct_GOALS: String(p.percentages.GOALS),
     pct_FUN: String(p.percentages.FUN),
+    rollover_NEEDS: !!p.rollover?.NEEDS,
+    rollover_FUTURE: !!p.rollover?.FUTURE,
+    rollover_GOALS: !!p.rollover?.GOALS,
+    rollover_FUN: !!p.rollover?.FUN,
     loans: (p.loans ?? []).map((l) => ({
       name: l.name,
       installment_amount: String(l.installment_amount),
@@ -204,7 +213,9 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
   };
 };
 
-export const budgetFromForm = (v: BudgetFormOut): BudgetPlan => ({
+/** `withRollover`: ustawienie przenoszenia środków wysyłamy tylko z konta (bez konta nie ma historii miesięcy na serwerze). */
+export const budgetFromForm = (v: BudgetFormOut, withRollover = false): BudgetPlan => ({
+  ...(withRollover ? { rollover: { NEEDS: v.rollover_NEEDS, FUTURE: v.rollover_FUTURE, GOALS: v.rollover_GOALS, FUN: v.rollover_FUN } } : {}),
   percentages: { NEEDS: v.pct_NEEDS, FUTURE: v.pct_FUTURE, GOALS: v.pct_GOALS, FUN: v.pct_FUN },
   // "wydane" w kategoriach liczy rejestr wydatków - formularz budżetu ich nie ustawia
   spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },

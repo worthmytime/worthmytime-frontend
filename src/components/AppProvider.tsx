@@ -61,7 +61,9 @@ function readLocalBudget(): BudgetPlan | null {
 }
 
 const toPlan = (b: BudgetState): BudgetPlan | null =>
-  b.is_custom || b.loans.length > 0 ? { percentages: b.percentages, spent: b.spent, loans: b.loans } : null;
+  b.is_custom || b.loans.length > 0
+    ? { percentages: b.percentages, spent: b.spent, loans: b.loans, ...(b.rollover ? { rollover: b.rollover } : {}) }
+    : null;
 
 
 export function effectiveMonthlyIncome(p: Profile | null): number | null {

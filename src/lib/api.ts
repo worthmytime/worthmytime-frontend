@@ -23,6 +23,8 @@ export interface BudgetPlan {
   percentages: Record<Category, number>;
   spent: Record<Category, number>;
   loans: LoanIn[];
+  /** Przenoszenie niewykorzystanych środków kategorii na kolejny miesiąc (tylko konto; brak pola = bez zmian). */
+  rollover?: Record<Category, boolean>;
 }
 
 export interface Expense {
@@ -120,8 +122,11 @@ export interface BudgetState extends BudgetPlan {
   monthly_loans: number;
   loans_income_percent: number | null;
   last_installment_in_months: number;
+  /** budżet kategorii razem ze środkami przeniesionymi z poprzednich miesięcy */
   amounts: Record<Category, number> | null;
   available: Record<Category, number> | null;
+  /** środki przeniesione na bieżący miesiąc w kategoriach z włączonym przenoszeniem */
+  rollover_amounts?: Record<Category, number>;
   monthly_income: number | null;
   total_spent: number;
   is_custom: boolean;
