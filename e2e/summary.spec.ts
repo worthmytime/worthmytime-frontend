@@ -86,7 +86,7 @@ test("podsumowanie miesiąca (konto): liczby, kategorie, wybór miesiąca i eksp
   await expect(page.getByTestId("card-largest")).toContainText("czynsz");
   await expect(page.getByTestId("summary-FUN")).toContainText(/500,00\szł \/ 700,00\szł/);
   await expect(page.getByTestId("summary-FUN")).toContainText("(71%)");
-  await expect(page.getByTestId("summary-FUN")).toContainText("+100,0%");
+  await expect(page.getByTestId("summary-FUN")).toContainText("(+100%)");
   await expect(page.getByRole("button", { name: "Następny miesiąc" })).toBeDisabled(); // nie wychodzimy poza bieżący miesiąc
 
   // poprzedni miesiąc: nowe zapytanie i liczby tego miesiąca
