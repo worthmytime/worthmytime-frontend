@@ -11,6 +11,7 @@ import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
 import ExpenseEditForm from "@/components/ExpenseEditForm";
 import ImportButton from "@/components/ImportButton";
+import LoansCard from "@/components/LoansCard";
 import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import PlannedRecurringList from "@/components/PlannedRecurringList";
@@ -296,6 +297,14 @@ export default function ExpensesPage() {
 
           </div>
           <div className="order-4">
+            <LoansCard
+              currency={currency}
+              income={monthlyIncome}
+              hourlyRate={monthlyIncome / ((profile.hours_per_day * profile.days_per_week * 52) / 12)}
+              onSaved={ledger.reload}
+            />
+          </div>
+          <div className="order-5">
           <RecurringCard recurring={recurring} currency={currency} />
 
           </div>

@@ -535,7 +535,7 @@ test("cel z kategorii: maksymalna wpłata wynika z wolnych środków kategorii",
 });
 test("kredyt z okresem spłaty i dniem raty: liczba rat z daty końca, najbliższa rata i postęp", async ({ page }) => {
   await withLocalProfile(page);
-  await page.goto("/budget");
+  await page.goto("/expenses");
   await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
 
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -560,27 +560,27 @@ test("kredyt z okresem spłaty i dniem raty: liczba rat z daty końca, najbliżs
   // dzień raty poza zakresem i koniec przed początkiem -> błędy przy polach
   await loan.getByLabel("Dzień raty w miesiącu").fill("40");
   await loan.getByLabel("Spłata do").fill(iso(new Date(now.getFullYear(), now.getMonth() - 8, 1)));
-  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await page.getByRole("button", { name: "Zapisz kredyty" }).click();
   await expect(page.getByText("Dzień miesiąca od 1 do 31")).toBeVisible();
   await expect(page.getByText("Koniec spłaty nie może być przed początkiem")).toBeVisible();
 
   await loan.getByLabel("Dzień raty w miesiącu").fill("15");
   await loan.getByLabel("Spłata do").fill(end);
-  await page.getByRole("button", { name: "Zapisz budżet" }).click();
-  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+  await page.getByRole("button", { name: "Zapisz kredyty" }).click();
+  await expect(page.getByText("Kredyty zapisane", { exact: true })).toBeVisible();
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
   expect(saved.loans[0]).toMatchObject({ payment_day: 15, start_date: start, end_date: end, installments_left: null });
 });
 
 test("kredyt spłacony (data końca w przeszłości) nie obciąża budżetu; brak raty i daty końca to błąd", async ({ page }) => {
   await withLocalProfile(page);
-  await page.goto("/budget");
+  await page.goto("/expenses");
   await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
   const loan = page.getByTestId("loan-0");
   await loan.getByLabel("Nazwa").fill("Stara pożyczka");
   await loan.getByLabel("Wysokość raty").fill("500");
 
-  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await page.getByRole("button", { name: "Zapisz kredyty" }).click();
   await expect(page.getByText("Podaj liczbę rat albo datę końca spłaty")).toBeVisible();
 
   await loan.getByLabel("Spłata do").fill("2020-01-15");
