@@ -130,7 +130,17 @@ export interface LifeContext {
   phone_age_years: number | null;
   computer_age_years: number | null;
   has_emergency_fund: boolean | null;
+  /** na ile miesięcy wydatków wystarczy poduszka */
+  emergency_fund_months: number | null;
+  saves_regularly: boolean | null;
+  invests: boolean | null;
   has_pets: boolean | null;
+  pets_description: string | null;
+  regular_health_costs: boolean | null;
+  does_sport: boolean | null;
+  pays_for_education: boolean | null;
+  /** własne kategorie użytkownika: coś ważnego, czego nie ma na liście pytań */
+  custom: { name: string; description: string }[];
   notes: string | null;
 }
 
