@@ -44,6 +44,9 @@ const schema = z.object({
 type FormIn = z.input<typeof schema>;
 type FormOut = z.output<typeof schema>;
 
+/** Krótka etykieta pochodzenia wpisu, który dopisał inny moduł aplikacji. */
+const SOURCE_LABEL = { RECURRING: "stały", LOAN: "rata", IMPORT: "import", WISH: "życzenie", GOAL: "cel" } as const;
+
 const COLORS: Record<Category, string> = {
   NEEDS: "var(--chart-1)",
   FUTURE: "var(--chart-2)",
@@ -403,7 +406,7 @@ export default function ExpensesPage() {
                                       {e.note || CATEGORY_INFO[e.category].label}
                                       {e.source_type && (
                                         <span className="ml-2 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="expense-source">
-                                          {e.source_type === "LOAN" ? "rata" : e.source_type === "IMPORT" ? "import" : "stały"}
+                                          {SOURCE_LABEL[e.source_type]}
                                         </span>
                                       )}
                                     </p>
