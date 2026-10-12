@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
+import { countsThisMonth, dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
 import {
   applyServerErrors,
@@ -102,10 +102,10 @@ function BudgetForm({
       end_date: l?.end_date || null,
       payment_day: toIntOrNull(l?.payment_day),
     };
-    return { installment: toNumber(l?.installment_amount), left: remainingInstallments(loan), loan };
+    return { installment: toNumber(l?.installment_amount), left: remainingInstallments(loan), counts: countsThisMonth(loan), loan };
   });
-  // spłacone kredyty (0 pozostałych rat) nie obciążają budżetu
-  const monthlyLoans = loans.filter((x) => x.left > 0).reduce((s, l) => s + l.installment, 0);
+  // budżet miesiąca obciąża każda rata wymagalna w tym miesiącu (także ostatnia, po terminie); spłacone wcześniej kredyty nie
+  const monthlyLoans = loans.filter((x) => x.counts).reduce((s, l) => s + l.installment, 0);
   const pct = (c: Category) => toNumber(w[`pct_${c}`]);
   const spent = (c: Category) => spentByCategory[c] ?? 0;
   const sum = BUDGET_CATEGORIES.reduce((s, c) => s + pct(c), 0);
@@ -199,7 +199,7 @@ function BudgetForm({
           <CardContent className="grid gap-4">
             {fields.length === 0 && <p className="text-sm text-muted-foreground">Brak kredytów i pożyczek.</p>}
             {fields.map((f, i) => {
-              const l = loans[i] ?? { installment: 0, left: 0, loan: {} as (typeof loans)[number]["loan"] };
+              const l = loans[i] ?? { installment: 0, left: 0, counts: false, loan: {} as (typeof loans)[number]["loan"] };
               const remaining = l.installment * l.left;
               const next = l.left > 0 ? nextInstallment(l.loan) : null;
               const last = lastPaymentDate(l.loan);
@@ -251,7 +251,9 @@ function BudgetForm({
 
                   {l.loan.end_date && l.left === 0 && (
                     <p className="text-sm text-muted-foreground" data-testid={`loan-summary-${i}`}>
-                      Okres spłaty już minął - ten kredyt uznajemy za spłacony i nie liczymy go do budżetu.
+                      {l.counts
+                        ? "Ostatnia rata wypadła w tym miesiącu: liczymy ją jeszcze do budżetu tego miesiąca, od następnego już nie."
+                        : "Okres spłaty już minął - ten kredyt uznajemy za spłacony i nie liczymy go do budżetu."}
                     </p>
                   )}
                   {remaining > 0 && (
