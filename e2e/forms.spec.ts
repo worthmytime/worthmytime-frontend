@@ -42,7 +42,7 @@ test("kalkulator: cena w polskim zapisie, bez duplikatów na liście życzeń i 
   await expect(saveChanges).toBeEnabled();
 });
 
-test("kwoty w polskim zapisie: wydatek ze spacją i przecinkiem, raty w Budżecie z przecinkiem", async ({ page }) => {
+test("kwoty w polskim zapisie: wydatek ze spacją i przecinkiem, raty kredytów z przecinkiem", async ({ page }) => {
   await withLocalProfile(page);
   await page.addInitScript(() =>
     window.localStorage.setItem(
@@ -65,10 +65,9 @@ test("kwoty w polskim zapisie: wydatek ze spacją i przecinkiem, raty w Budżeci
   await page.getByRole("button", { name: "Dopisz wydatek" }).click();
   await expect(page.getByText("Podaj kwotę większą od zera")).toBeVisible();
 
-  await page.goto("/budget");
   const loan = page.getByTestId("loan-0");
   await expect(loan.getByLabel("Wysokość raty")).toHaveValue("540,18");
-  await expect(loan.getByLabel("Kwota kredytu")).toHaveValue("6482,16");
+  await expect(loan.getByLabel("Suma kredytu")).toHaveValue("6482,16");
 });
 
 test("budżet: pasek zapisu pokazuje stan i sumę, a wyjście z niezapisanymi zmianami wymaga potwierdzenia", async ({ page, isMobile }) => {

@@ -25,6 +25,10 @@ test("raty liczone tak samo na Wydatkach, w Budżecie i w alertach", async ({ pa
   await expect(page.getByTestId("usage-NEEDS")).toContainText(/1\s540,18\szł \/ 3\s500,00\szł/);
   await expect(page.getByTestId("month-total")).toHaveText(/1\s540,18\szł/);
 
+  // karta kredytów (na Wydatkach) wyjaśnia, co jest liczone
+  await expect(page.getByTestId("loan-summary-0")).toContainText("Ostatnia rata wypadła w tym miesiącu");
+  await expect(page.getByTestId("loan-summary-1")).toContainText("uznajemy za spłacony");
+
   // dzwonek: ostatnia rata nie jest oznaczona jako zapłacona, więc alert zostaje po terminie
   await page.getByTestId("alerts-bell").click();
   const alert = page.getByTestId("alert-LOAN_DUE:local:Pożyczka:540.18");
@@ -32,10 +36,8 @@ test("raty liczone tak samo na Wydatkach, w Budżecie i w alertach", async ({ pa
   await expect(alert).toContainText("Termin minął 11 października 2026 (9 dni temu)");
   await expect(page.getByTestId("alert-LOAN_DUE:local:Stara pożyczka:300")).toHaveCount(0);
 
-  // Budżet: ta sama kwota w Potrzebach i wyjaśnienie przy pożyczce
+  // Budżet: ta sama kwota w Potrzebach
   await page.goto("/budget");
   await expect(page.getByTestId("budget-NEEDS")).toContainText(/wydane \(rejestr \+ raty\): 1\s540,18\szł/);
   await expect(page.getByTestId("loans-total")).toContainText(/540,18\szł/);
-  await expect(page.getByTestId("loan-summary-0")).toContainText("Ostatnia rata wypadła w tym miesiącu");
-  await expect(page.getByTestId("loan-summary-1")).toContainText("uznajemy za spłacony");
 });

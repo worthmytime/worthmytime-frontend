@@ -1,10 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
 import DailyLimit from "@/components/DailyLimit";
@@ -16,15 +15,20 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { countsThisMonth, dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
+import { countsThisMonth } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
-import { applyServerErrors, BUDGET_CATEGORIES, budgetFromForm, budgetSchema, budgetToForm, errorMessage, type BudgetFormIn, type BudgetFormOut, parseNumber } from "@/lib/forms";
-
-const toIntOrNull = (s: string | undefined) => {
-  if (!s || s.trim() === "") return null;
-  const n = Math.floor(parseNumber(s));
-  return Number.isFinite(n) ? n : null;
-};
+import {
+  applyServerErrors,
+  BUDGET_CATEGORIES,
+  budgetFromForm,
+  budgetSchema,
+  budgetToForm,
+  errorMessage,
+  loansForSave,
+  parseNumber,
+  type BudgetFormIn,
+  type BudgetFormOut,
+} from "@/lib/forms";
 
 const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? parseNumber(s) : 0) || 0;
 
@@ -33,12 +37,10 @@ export default function BudgetPage() {
   const ledger = useLedger();
   if (!ready || ledger.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
-  const hoursPerMonth = (profile.hours_per_day * profile.days_per_week * 52) / 12;
   return (
     <BudgetForm
       key={JSON.stringify(budget)}
       income={monthlyIncome}
-      hourlyRate={monthlyIncome / hoursPerMonth}
       currency={profile.currency}
       budget={budget}
       save={saveBudget}
@@ -52,7 +54,6 @@ export default function BudgetPage() {
 
 function BudgetForm({
   income,
-  hourlyRate,
   currency,
   budget,
   save,
@@ -67,7 +68,6 @@ function BudgetForm({
   carried?: Record<Category, number>;
   onSaved: () => Promise<void>;
   income: number;
-  hourlyRate: number;
   currency: string;
   budget: ReturnType<typeof useApp>["budget"];
   save: ReturnType<typeof useApp>["saveBudget"];
@@ -86,18 +86,8 @@ function BudgetForm({
     formState: { errors, isSubmitting },
   } = form;
   const w = useWatch({ control });
-  const { fields, append, remove } = useFieldArray({ control, name: "loans" });
-  const loans = (w.loans ?? []).map((l) => {
-    const loan = {
-      installments_left: toIntOrNull(l?.installments_left),
-      start_date: l?.start_date || null,
-      end_date: l?.end_date || null,
-      payment_day: toIntOrNull(l?.payment_day),
-    };
-    return { installment: toNumber(l?.installment_amount), left: remainingInstallments(loan), counts: countsThisMonth(loan), loan };
-  });
-  // budżet miesiąca obciąża każda rata wymagalna w tym miesiącu (także ostatnia, po terminie); spłacone wcześniej kredyty nie
-  const monthlyLoans = loans.filter((x) => x.counts).reduce((s, l) => s + l.installment, 0);
+  // raty obciążające ten miesiąc: z zapisanych kredytów (zarządza się nimi na stronie Wydatki)
+  const monthlyLoans = (budget?.loans ?? []).filter((l) => countsThisMonth(l)).reduce((total, l) => total + l.installment_amount, 0);
   const pct = (c: Category) => toNumber(w[`pct_${c}`]);
   const spent = (c: Category) => spentByCategory[c] ?? 0;
   const sum = BUDGET_CATEGORIES.reduce((s, c) => s + pct(c), 0);
@@ -126,7 +116,8 @@ function BudgetForm({
 
   async function submit(values: BudgetFormOut) {
     try {
-      await save(budgetFromForm(values, loggedIn));
+      // zapisujemy sam podział dochodu; kredyty przechodzą bez zmian, z identyfikatorami
+      await save({ ...budgetFromForm(values, loggedIn), loans: loansForSave(budget?.loans) });
       await onSaved(); // przeniesione kwoty liczy serwer, więc po zmianie ustawienia pobieramy je ponownie
       toast.success("Budżet zapisany");
     } catch (e) {
@@ -140,7 +131,7 @@ function BudgetForm({
         <h1 className="text-2xl font-semibold tracking-tight">Plan budżetu</h1>
         <p className="text-sm text-muted-foreground">
           Podziel miesięczny dochód ({money(income, currency)}) na koszyki. Przy każdym zakupie sprawdzimy, czy mieści się w budżecie wybranej kategorii. Wydane w kategoriach
-          liczymy z rejestru <Link href="/expenses" className="text-primary underline">Wydatki</Link> - tutaj ustawiasz tylko procenty i kredyty.
+          liczymy z rejestru <Link href="/expenses" className="text-primary underline">Wydatki</Link>, tam też są kredyty i pożyczki - tutaj ustawiasz tylko podział dochodu.
         </p>
       </div>
 
@@ -173,6 +164,16 @@ function BudgetForm({
                   <b className={available < 0 ? "text-destructive tabular-nums" : "text-foreground tabular-nums"}>{money(available, currency)}</b>
                 </p>
                 <DailyLimit budget={amount} variableSpent={spent(c)} fixed={loansHere} currency={currency} testId={`daily-${c}`} />
+                {loansHere > 0 && (
+                  <p className="text-xs text-muted-foreground" data-testid="loans-total">
+                    W tym raty kredytów i pożyczek: {money(loansHere, currency)} miesięcznie ({num((loansHere / income) * 100, 1)}% dochodu). Kredytami
+                    zarządzasz na stronie{" "}
+                    <Link href="/expenses" className="text-primary underline">
+                      Wydatki
+                    </Link>
+                    .
+                  </p>
+                )}
                 {loggedIn ? (
                   <label className="flex items-start gap-2 text-sm">
                     <input type="checkbox" role="switch" className="mt-0.5 size-5 shrink-0" {...register(`rollover_${c}`)} />
@@ -197,136 +198,6 @@ function BudgetForm({
           );
         })}
         </div>
-
-        <Card data-testid="loans-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              Kredyty i pożyczki
-              <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">P0 · zobowiązania</span>
-            </CardTitle>
-            <CardDescription>
-              Podaj ratę i dzień miesiąca, w którym ją płacisz, oraz okres spłaty (od - do) albo liczbę rat do spłacenia; kwota kredytu jest opcjonalna. Raty liczymy automatycznie do kategorii Potrzeby, bo to wymagalne zobowiązania - zmniejszają dostępny budżet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {fields.length === 0 && <p className="text-sm text-muted-foreground">Brak kredytów i pożyczek.</p>}
-            {fields.map((f, i) => {
-              const l = loans[i] ?? { installment: 0, left: 0, counts: false, loan: {} as (typeof loans)[number]["loan"] };
-              const remaining = l.installment * l.left;
-              const next = l.left > 0 ? nextInstallment(l.loan) : null;
-              const last = lastPaymentDate(l.loan);
-              const progress = repaymentProgress(l.loan);
-              return (
-                <div key={f.id} className="grid gap-3 rounded-xl border bg-muted/30 p-3" data-testid={`loan-${i}`}>
-                  <div className="flex items-end gap-2">
-                    <Field label="Nazwa" className="flex-1" error={errors.loans?.[i]?.name?.message}>
-                      {(p) => <Input {...p} placeholder="np. Kredyt hipoteczny" className="h-11" {...register(`loans.${i}.name`)} />}
-                    </Field>
-                    <Button type="button" variant="ghost" className="size-11" aria-label={`Usuń kredyt ${i + 1}`} onClick={() => remove(i)}>
-                      <Trash2Icon />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <Field label="Wysokość raty" error={errors.loans?.[i]?.installment_amount?.message}>
-                      {(p) => <Input {...p} inputMode="decimal" placeholder="800" className="h-11" {...register(`loans.${i}.installment_amount`)} />}
-                    </Field>
-                    <Field label="Dzień raty w miesiącu" hint="1-31, np. 15" error={errors.loans?.[i]?.payment_day?.message}>
-                      {(p) => <Input {...p} inputMode="numeric" placeholder="15" className="h-11" {...register(`loans.${i}.payment_day`)} />}
-                    </Field>
-                    <Field label="Kwota kredytu" hint="Opcjonalnie" error={errors.loans?.[i]?.loan_amount?.message} className="col-span-2 sm:col-span-1">
-                      {(p) => <Input {...p} inputMode="decimal" placeholder="40000" className="h-11" {...register(`loans.${i}.loan_amount`)} />}
-                    </Field>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Spłata od" error={errors.loans?.[i]?.start_date?.message}>
-                      {(p) => <Input {...p} type="date" className="h-11" {...register(`loans.${i}.start_date`)} />}
-                    </Field>
-                    <Field label="Spłata do" error={errors.loans?.[i]?.end_date?.message}>
-                      {(p) => <Input {...p} type="date" className="h-11" {...register(`loans.${i}.end_date`)} />}
-                    </Field>
-                  </div>
-                  <Field
-                    label="Rat do spłacenia"
-                    hint={l.loan.end_date ? "Opcjonalnie - z daty końca liczymy ją sami i maleje z czasem" : "Podaj liczbę rat albo datę końca spłaty"}
-                    error={errors.loans?.[i]?.installments_left?.message}
-                  >
-                    {(p) => (
-                      <Input
-                        {...p}
-                        inputMode="numeric"
-                        placeholder={l.loan.end_date ? `wyliczone: ${l.left}` : "36"}
-                        className="h-11"
-                        {...register(`loans.${i}.installments_left`)}
-                      />
-                    )}
-                  </Field>
-
-                  {l.loan.end_date && l.left === 0 && (
-                    <p className="text-sm text-muted-foreground" data-testid={`loan-summary-${i}`}>
-                      {l.counts
-                        ? "Ostatnia rata wypadła w tym miesiącu: liczymy ją jeszcze do budżetu tego miesiąca, od następnego już nie."
-                        : "Okres spłaty już minął - ten kredyt uznajemy za spłacony i nie liczymy go do budżetu."}
-                    </p>
-                  )}
-                  {remaining > 0 && (
-                    <div className="grid gap-2" data-testid={`loan-summary-${i}`}>
-                      <p className="text-sm text-muted-foreground">
-                        Do spłaty zostało <b className="text-foreground tabular-nums">{money(remaining, currency)}</b> ({l.left}{" "}
-                        {l.left === 1 ? "rata" : "rat"}) - to <b className="text-foreground tabular-nums">{num(remaining / hourlyRate, 0)} h</b> Twojej
-                        pracy. Rata to {num((l.installment / income) * 100, 1)}% dochodu.
-                      </p>
-                      {next && (
-                        <p className="text-sm" data-testid={`loan-next-${i}`}>
-                          Najbliższa rata: <b>{dateLabel(next.date)}</b> {next.inDays === 0 ? "(dziś)" : `(za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"})`}
-                          {last && (
-                            <>
-                              , ostatnia: <b>{dateLabel(last)}</b>
-                            </>
-                          )}
-                          .
-                        </p>
-                      )}
-                      {progress != null && (
-                        <div className="grid gap-1">
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>Okres spłaty</span>
-                            <span className="tabular-nums">{num(progress, 0)}%</span>
-                          </div>
-                          <div
-                            className="h-1.5 overflow-hidden rounded-full bg-muted"
-                            role="progressbar"
-                            aria-label="Postęp okresu spłaty"
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={Math.round(progress)}
-                          >
-                            <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11"
-                onClick={() =>
-                  append({ name: "", installment_amount: "", installments_left: "", loan_amount: "", start_date: "", end_date: "", payment_day: "" })
-                }
-              >
-                <PlusIcon /> Dodaj kredyt lub pożyczkę
-              </Button>
-              {monthlyLoans > 0 && (
-                <p className="text-sm" data-testid="loans-total">
-                  Raty łącznie: <b className="tabular-nums">{money(monthlyLoans, currency)}</b> miesięcznie ({num((monthlyLoans / income) * 100, 1)}% dochodu)
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
 
         <Card size="sm" className={sumOk ? "" : "ring-destructive/50"}>
           <CardContent className="grid gap-1 text-sm">
@@ -362,7 +233,7 @@ function BudgetForm({
             {isSubmitting ? "Zapisuję…" : "Zapisz budżet"}
           </Button>
           <Button type="button" variant="outline" className="h-11" onClick={() => {
-              // wracają tylko procenty: kredyty i przenoszenie środków zostają
+              // wracają tylko procenty: przenoszenie środków zostaje
               const v = getValues();
               reset({
                 ...budgetToForm(null),
@@ -370,7 +241,6 @@ function BudgetForm({
                 rollover_FUTURE: v.rollover_FUTURE,
                 rollover_GOALS: v.rollover_GOALS,
                 rollover_FUN: v.rollover_FUN,
-                loans: v.loans,
               });
             }}>
             Przywróć 50/25/15/10

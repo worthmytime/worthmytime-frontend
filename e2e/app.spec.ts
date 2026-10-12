@@ -308,37 +308,56 @@ test("strona budżetu: walidacja sumy 100% i zapis planu", async ({ page }) => {
   expect(saved.percentages).toEqual({ NEEDS: 40, FUTURE: 25, GOALS: 15, FUN: 20 });
 });
 
-test("kredyty i pożyczki: raty, liczba rat i koszt w czasie pracy; plan trafia do localStorage", async ({ page }) => {
+test("kredyty i pożyczki (na Wydatkach): raty, liczba rat i koszt w czasie pracy; plan trafia do localStorage", async ({ page }) => {
   await withLocalProfile(page);
-  await page.goto("/budget");
+  await page.goto("/expenses");
   await page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" }).click();
 
   const loan = page.getByTestId("loan-0");
   await loan.getByLabel("Nazwa").fill("Kredyt gotówkowy");
   await loan.getByLabel("Wysokość raty").fill("800");
   await loan.getByLabel("Rat do spłacenia").fill("36");
-  await loan.getByLabel("Kwota kredytu").fill("40000");
+  await loan.getByLabel("Suma kredytu").fill("40000");
 
   // 800 x 36 = 28 800 zł do spłaty; przy 40,38 zł/h (dochód 7 000 zł) to 713 h pracy
   await expect(page.getByTestId("loan-summary-0")).toContainText("28 800,00");
   await expect(page.getByTestId("loan-summary-0")).toContainText("713 h");
   await expect(page.getByTestId("loans-total")).toContainText("800,00");
 
-  // raty zmniejszają dostępny budżet Potrzeb: 3 500 - 800 = 2 700
-  await expect(page.getByTestId("budget-NEEDS")).toContainText("2 700,00");
-
   // niepoprawna liczba rat -> błąd przy polu
   await loan.getByLabel("Rat do spłacenia").fill("0");
-  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await page.getByRole("button", { name: "Zapisz kredyty" }).click();
   await expect(page.getByText("Liczba rat: całkowita, od 1 do 600")).toBeVisible();
   await loan.getByLabel("Rat do spłacenia").fill("36");
-  await page.getByRole("button", { name: "Zapisz budżet" }).click();
-  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+  await expect(page.getByTestId("loans-status")).toHaveText("Masz niezapisane zmiany w kredytach.");
+  await page.getByRole("button", { name: "Zapisz kredyty" }).click();
+  await expect(page.getByText("Kredyty zapisane", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("loans-status")).toHaveText("Kredyty zapisane.");
+
+  // zapisane raty od razu obciążają Potrzeby na Wydatkach (800 zł z 3 500 zł) i w Budżecie (dostępne 2 700 zł)
+  await expect(page.getByTestId("usage-NEEDS")).toContainText(/800,00\szł \/ 3\s500,00\szł/);
 
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
   expect(saved.loans).toEqual([
     { name: "Kredyt gotówkowy", installment_amount: 800, installments_left: 36, loan_amount: 40000, start_date: null, end_date: null, payment_day: null },
   ]);
+  expect(saved.percentages).toEqual({ NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 }); // zapis kredytów nie rusza podziału dochodu
+
+  // strona Budżet nie ma już formularza kredytów: pokazuje tylko, ile rat obciąża Potrzeby, i odsyła do Wydatków
+  await page.goto("/budget");
+  await expect(page.getByTestId("loan-0")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Dodaj kredyt lub pożyczkę" })).toHaveCount(0);
+  await expect(page.getByTestId("budget-NEEDS")).toContainText("2 700,00");
+  await expect(page.getByTestId("loans-total")).toContainText(/800,00\szł/);
+  // zapis budżetu zostawia kredyty bez zmian
+  await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("40");
+  await page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)").fill("20");
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+  const after = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
+  expect(after.percentages.NEEDS).toBe(40);
+  expect(after.loans).toHaveLength(1);
+  expect(after.loans[0]).toMatchObject({ name: "Kredyt gotówkowy", installment_amount: 800, installments_left: 36 });
 });
 
 test("karta budżetu pokazuje raty kredytów i ostrzeżenie, gdy zjadają budżet Potrzeb", async ({ page }) => {

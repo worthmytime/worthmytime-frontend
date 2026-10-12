@@ -1,6 +1,6 @@
 import type { FieldPath, FieldValues, UseFormSetError } from "react-hook-form";
 import { z } from "zod";
-import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type Profile } from "./api";
+import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type LoanIn, type Profile } from "./api";
 
 /**
  * Liczba z pola tekstowego w polskim zapisie: "1 299,99" -> 1299.99. Spacje (także niełamiące) grupują tysiące,
@@ -148,6 +148,37 @@ export const calcFromForm = (v: CalcFormOut): CalculationIn => ({
 
 // --- budżet ---------------------------------------------------------------------------------
 
+/** Jeden kredyt lub pożyczka w formularzu (karta "Kredyty i pożyczki" na stronie Wydatki). */
+export const loanSchema = z.object({
+  // identyfikator kredytu z serwera ("" dla nowego): dzięki niemu zapis nie zrywa powiązania z opłaconymi ratami
+  loan_id: z.string(),
+  name: z.string().trim().min(1, "Podaj nazwę").max(100),
+  installment_amount: requiredNumber("Rata").refine((n) => n > 0, "Rata musi być większa od zera"),
+  installments_left: optionalNumber.refine(
+    (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 600),
+    "Liczba rat: całkowita, od 1 do 600",
+  ),
+  loan_amount: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
+  start_date: z.string(),
+  end_date: z.string(),
+  payment_day: optionalNumber.refine(
+    (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 31),
+    "Dzień miesiąca od 1 do 31",
+  ),
+})
+.superRefine((l, ctx) => {
+  if (l.installments_left === null && !l.end_date) {
+    ctx.addIssue({ code: "custom", path: ["installments_left"], message: "Podaj liczbę rat albo datę końca spłaty" });
+  }
+  if (l.start_date && l.end_date && l.end_date < l.start_date) {
+    ctx.addIssue({ code: "custom", path: ["end_date"], message: "Koniec spłaty nie może być przed początkiem" });
+  }
+});
+
+export const loansSchema = z.object({ loans: z.array(loanSchema) });
+export type LoansFormIn = z.input<typeof loansSchema>;
+export type LoansFormOut = z.output<typeof loansSchema>;
+
 export const budgetSchema = z
   .object({
     pct_NEEDS: requiredNumber("Potrzeby").refine((n) => n >= 0 && n <= 100, "Od 0 do 100"),
@@ -159,31 +190,6 @@ export const budgetSchema = z
     rollover_FUTURE: z.boolean(),
     rollover_GOALS: z.boolean(),
     rollover_FUN: z.boolean(),
-    loans: z.array(
-      z.object({
-        name: z.string().trim().min(1, "Podaj nazwę").max(100),
-        installment_amount: requiredNumber("Rata").refine((n) => n > 0, "Rata musi być większa od zera"),
-        installments_left: optionalNumber.refine(
-          (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 600),
-          "Liczba rat: całkowita, od 1 do 600",
-        ),
-        loan_amount: optionalNumber.refine((n) => n === null || n >= 0, "Nie może być ujemna"),
-        start_date: z.string(),
-        end_date: z.string(),
-        payment_day: optionalNumber.refine(
-          (n) => n === null || (Number.isInteger(n) && n >= 1 && n <= 31),
-          "Dzień miesiąca od 1 do 31",
-        ),
-      })
-      .superRefine((l, ctx) => {
-        if (l.installments_left === null && !l.end_date) {
-          ctx.addIssue({ code: "custom", path: ["installments_left"], message: "Podaj liczbę rat albo datę końca spłaty" });
-        }
-        if (l.start_date && l.end_date && l.end_date < l.start_date) {
-          ctx.addIssue({ code: "custom", path: ["end_date"], message: "Koniec spłaty nie może być przed początkiem" });
-        }
-      }),
-    ),
   })
   .superRefine((v, ctx) => {
     const sum = v.pct_NEEDS + v.pct_FUTURE + v.pct_GOALS + v.pct_FUN;
@@ -212,26 +218,37 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
     rollover_FUTURE: !!p.rollover?.FUTURE,
     rollover_GOALS: !!p.rollover?.GOALS,
     rollover_FUN: !!p.rollover?.FUN,
-    loans: (p.loans ?? []).map((l) => ({
-      name: l.name,
-      installment_amount: numberToInput(l.installment_amount),
-      // z datą końca liczba rat jest wyliczana na bieżąco - nie wpisujemy zapisanej migawki do formularza
-      installments_left: l.installments_left && !l.end_date ? String(l.installments_left) : "",
-      loan_amount: l.loan_amount ? numberToInput(l.loan_amount) : "",
-      start_date: l.start_date ?? "",
-      end_date: l.end_date ?? "",
-      payment_day: l.payment_day ? String(l.payment_day) : "",
-    })),
   };
 };
 
-/** `withRollover`: ustawienie przenoszenia środków wysyłamy tylko z konta (bez konta nie ma historii miesięcy na serwerze). */
-export const budgetFromForm = (v: BudgetFormOut, withRollover = false): BudgetPlan => ({
+/**
+ * Podział dochodu z formularza Budżetu (bez kredytów: te mają własną kartę na stronie Wydatki).
+ * `withRollover`: ustawienie przenoszenia środków wysyłamy tylko z konta (bez konta nie ma historii miesięcy na serwerze).
+ */
+export const budgetFromForm = (v: BudgetFormOut, withRollover = false): Omit<BudgetPlan, "loans"> => ({
   ...(withRollover ? { rollover: { NEEDS: v.rollover_NEEDS, FUTURE: v.rollover_FUTURE, GOALS: v.rollover_GOALS, FUN: v.rollover_FUN } } : {}),
   percentages: { NEEDS: v.pct_NEEDS, FUTURE: v.pct_FUTURE, GOALS: v.pct_GOALS, FUN: v.pct_FUN },
   // "wydane" w kategoriach liczy rejestr wydatków - formularz budżetu ich nie ustawia
   spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
-  loans: v.loans.map((l) => ({
+});
+
+export const loansToForm = (loans: LoanIn[] | undefined): LoansFormIn => ({
+  loans: (loans ?? []).map((l) => ({
+    loan_id: l.id ?? "",
+    name: l.name,
+    installment_amount: numberToInput(l.installment_amount),
+    // z datą końca liczba rat jest wyliczana na bieżąco - nie wpisujemy zapisanej migawki do formularza
+    installments_left: l.installments_left && !l.end_date ? String(l.installments_left) : "",
+    loan_amount: l.loan_amount ? numberToInput(l.loan_amount) : "",
+    start_date: l.start_date ?? "",
+    end_date: l.end_date ?? "",
+    payment_day: l.payment_day ? String(l.payment_day) : "",
+  })),
+});
+
+export const loansFromForm = (v: LoansFormOut): LoanIn[] =>
+  v.loans.map((l) => ({
+    ...(l.loan_id ? { id: l.loan_id } : {}),
     name: l.name,
     installment_amount: l.installment_amount,
     installments_left: l.installments_left,
@@ -239,8 +256,23 @@ export const budgetFromForm = (v: BudgetFormOut, withRollover = false): BudgetPl
     start_date: l.start_date || null,
     end_date: l.end_date || null,
     payment_day: l.payment_day,
-  })),
-});
+  }));
+
+/**
+ * Kredyty w kształcie do zapisu, gdy zmienia się tylko podział dochodu: identyfikator zostaje, a liczba rat
+ * wyliczana z daty końca nie jest odsyłana (API liczy ją samo).
+ */
+export const loansForSave = (loans: LoanIn[] | undefined): LoanIn[] =>
+  (loans ?? []).map((l) => ({
+    ...(l.id ? { id: l.id } : {}),
+    name: l.name,
+    installment_amount: l.installment_amount,
+    installments_left: l.end_date ? null : (l.installments_left ?? null),
+    loan_amount: l.loan_amount ?? null,
+    start_date: l.start_date ?? null,
+    end_date: l.end_date ?? null,
+    payment_day: l.payment_day ?? null,
+  }));
 
 /**
  * Przenosi błędy walidacji z API (422) na pola formularza.
