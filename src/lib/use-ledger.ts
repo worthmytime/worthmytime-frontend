@@ -27,22 +27,29 @@ export function useLedger() {
   const [items, setItems] = useState<Expense[]>([]);
   const [summary, setSummary] = useState<MonthSummary[]>([]);
   const [budget, setBudget] = useState<BudgetState | null>(null);
+  // raty opłacone z góry: wpisy LOAN z następnego miesiąca (rata ma datę swojego terminu, nie dnia zapłaty)
+  const [prepaid, setPrepaid] = useState<Expense[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [version, setVersion] = useState(0); // zmiana odświeża dane z API po dopisaniu lub usunięciu wpisu
 
   useEffect(() => {
     if (!loggedIn) return;
     let cancelled = false;
+    const now = new Date();
+    const nextPeriod = periodOf(new Date(now.getFullYear(), now.getMonth() + 1, 1));
     Promise.all([
       api<{ items: Expense[] }>("/expenses"),
       api<{ months: MonthSummary[] }>(`/expenses/summary?months=${MONTHS}`),
       api<BudgetState>("/budget"),
+      // bez tego rata z kolejnego miesiąca, oznaczona już jako zapłacona, wyglądałaby na nieopłaconą
+      api<{ items: Expense[] }>(`/expenses?month=${nextPeriod}`).catch(() => ({ items: [] as Expense[] })),
     ])
-      .then(([month, sum, b]) => {
+      .then(([month, sum, b, next]) => {
         if (cancelled) return;
         setItems(month.items);
         setSummary(sum.months);
         setBudget(b);
+        setPrepaid(next.items.filter((e) => e.source_type === "LOAN" && periodOf(e.spent_on) === nextPeriod));
         setLoaded(true);
       })
       .catch((e) => {
@@ -172,6 +179,7 @@ export function useLedger() {
   const trend = loggedIn ? summary : summarize(localLedger, periods);
   const total = round2(Object.values(monthTotals).reduce((s, v) => s + v, 0));
 
-  const allItems = loggedIn ? items : localLedger;
+  // wszystko, co wiemy o wpisach: na koncie bieżący miesiąc i raty opłacone z góry, bez konta cały lokalny rejestr
+  const allItems = loggedIn ? [...items, ...prepaid] : localLedger;
   return { loading, items: monthItems, allItems, totals: monthTotals ?? zeroTotals(), total, trend, serverBudget: budget, add, update, remove, payLoan, importMany, reload, period };
 }
