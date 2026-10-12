@@ -33,8 +33,11 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
-  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku); brak = wpis ręczny */
-  source_type?: "RECURRING" | "LOAN" | "IMPORT" | null;
+  /**
+   * pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku),
+   * WISH (zakup z listy życzeń), GOAL (wpłata na cel); brak = wpis ręczny
+   */
+  source_type?: "RECURRING" | "LOAN" | "IMPORT" | "WISH" | "GOAL" | null;
   source_id?: string | null;
 }
 
@@ -122,6 +125,15 @@ export interface WishlistStats {
   waiting_count: number;
   waiting_total: number;
   ready_count: number;
+}
+
+/** Wpłata na cel (kwota dodatnia) albo wypłata (ujemna) z historii celu. */
+export interface GoalDeposit {
+  id: string;
+  amount: number;
+  deposited_on: string; // YYYY-MM-DD
+  /** wpłata ma powiązany wpis w rejestrze wydatków */
+  in_ledger: boolean;
 }
 
 export interface SavingsGoal {

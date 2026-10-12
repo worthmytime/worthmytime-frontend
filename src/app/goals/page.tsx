@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { api, type SavingsGoal } from "@/lib/api";
+import { api, type BudgetState, type Category, type GoalDeposit, type SavingsGoal } from "@/lib/api";
 import { money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber } from "@/lib/forms";
 import { CATEGORY_INFO } from "@/lib/format";
@@ -39,6 +39,8 @@ export default function GoalsPage() {
   const { ready, loggedIn, profile } = useApp();
   const [goals, setGoals] = useState<SavingsGoal[] | null>(null);
   const [currency, setCurrency] = useState("PLN");
+  // dostępne środki kategorii po ostatniej zmianie (podpowiedź przy wpłacie); odświeżane razem z celami
+  const [available, setAvailable] = useState<Record<Category, number> | null>(null);
   const form = useForm<FormIn, unknown, FormOut>({
     resolver: zodResolver(schema),
     defaultValues: { name: "", target_amount: "", saved_amount: "", monthly_contribution: "", target_date: "", category: "" },
@@ -57,12 +59,15 @@ export default function GoalsPage() {
 
   const load = useCallback(
     () =>
-      api<{ items: SavingsGoal[]; currency: string }>("/goals")
-        .then((r) => {
+      Promise.all([
+        api<{ items: SavingsGoal[]; currency: string }>("/goals").then((r) => {
           setGoals(r.items);
           setCurrency(r.currency);
-        })
-        .catch((e) => toast.error(errorMessage(e, "Nie udało się pobrać celów"))),
+        }),
+        api<BudgetState>("/budget")
+          .then((b) => setAvailable(b.available))
+          .catch(() => setAvailable(null)),
+      ]).catch((e) => toast.error(errorMessage(e, "Nie udało się pobrać celów"))),
     [],
   );
 
@@ -168,14 +173,46 @@ export default function GoalsPage() {
       {goals === null && <Skeleton className="h-40" />}
       {goals?.length === 0 && <p className="text-center text-sm text-muted-foreground">Nie masz jeszcze żadnych celów.</p>}
       {goals?.map((g) => (
-        <GoalCard key={g.id} goal={g} currency={currency} onChange={load} />
+        <GoalCard key={g.id} goal={g} currency={currency} available={available} onChange={load} />
       ))}
     </div>
   );
 }
 
-function GoalCard({ goal: g, currency, onChange }: { goal: SavingsGoal; currency: string; onChange: () => Promise<unknown> }) {
+function GoalCard({
+  goal: g,
+  currency,
+  available,
+  onChange,
+}: {
+  goal: SavingsGoal;
+  currency: string;
+  available: Record<Category, number> | null;
+  onChange: () => Promise<unknown>;
+}) {
   const [amount, setAmount] = useState("");
+  const [addExpense, setAddExpense] = useState(true);
+  // historia wpłat: null = zwinięta, tablica = pobrana i pokazana
+  const [history, setHistory] = useState<GoalDeposit[] | null>(null);
+  // wpłata trafia do rejestru w kategorii celu, a gdy cel jej nie ma, w Przyszłości
+  const expenseCategory: Category = g.category ?? "FUTURE";
+  const typed = Number(amount.replace(",", "."));
+  const left = available && Number.isFinite(typed) && typed > 0 ? available[expenseCategory] - typed : null;
+
+  const loadHistory = () =>
+    api<{ items: GoalDeposit[] }>(`/goals/${g.id}/deposits`)
+      .then((r) => setHistory(r.items))
+      .catch((e) => toast.error(errorMessage(e, "Nie udało się pobrać historii wpłat")));
+
+  async function undoDeposit(d: GoalDeposit) {
+    try {
+      await api(`/goals/${g.id}/deposits/${d.id}`, { method: "DELETE" });
+      toast.success(d.in_ledger ? "Wpłata cofnięta, wydatek usunięty z rejestru" : "Cofnięto");
+      await Promise.all([onChange(), loadHistory()]);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }
 
   async function deposit(sign: 1 | -1) {
     const value = Number(amount.replace(",", "."));
@@ -184,10 +221,11 @@ function GoalCard({ goal: g, currency, onChange }: { goal: SavingsGoal; currency
       return;
     }
     try {
-      await api(`/goals/${g.id}/deposit`, { body: { amount: sign * value } });
+      // wypłata nigdy nie tworzy wydatku, więc pytanie o rejestr dotyczy tylko wpłaty
+      await api(`/goals/${g.id}/deposit`, { body: sign === 1 ? { amount: value, add_expense: addExpense } : { amount: -value } });
       setAmount("");
-      toast.success(sign === 1 ? "Wpłata dopisana" : "Wypłata zapisana");
-      await onChange();
+      toast.success(sign === 1 ? (addExpense ? "Wpłata dopisana, także do wydatków" : "Wpłata dopisana") : "Wypłata zapisana");
+      await Promise.all([onChange(), history ? loadHistory() : null]);
     } catch (e) {
       toast.error(errorMessage(e));
     }
@@ -280,6 +318,58 @@ function GoalCard({ goal: g, currency, onChange }: { goal: SavingsGoal; currency
           <Button variant="outline" className="h-10" onClick={() => deposit(-1)}>
             Wypłać
           </Button>
+        </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 size-5 shrink-0" checked={addExpense} onChange={(e) => setAddExpense(e.target.checked)} />
+          <span>
+            Dopisz wpłatę do wydatków ({CATEGORY_INFO[expenseCategory].label})
+            <span className="block text-xs text-muted-foreground" data-testid="deposit-impact">
+              {!addExpense
+                ? "Wpłata zmieni tylko postęp celu, bez wpisu w rejestrze wydatków."
+                : left == null
+                  ? `Wpłata obciąży budżet kategorii ${CATEGORY_INFO[expenseCategory].label}.`
+                  : left >= 0
+                    ? `Po wpłacie w kategorii ${CATEGORY_INFO[expenseCategory].label} zostanie ${money(left, currency)}.`
+                    : `Wpłata przekroczy dostępne środki kategorii ${CATEGORY_INFO[expenseCategory].label} o ${money(-left, currency)}.`}
+            </span>
+          </span>
+        </label>
+
+        <div className="grid gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-fit"
+            aria-expanded={history != null}
+            onClick={() => (history ? setHistory(null) : void loadHistory())}
+          >
+            {history ? "Ukryj historię wpłat" : "Historia wpłat"}
+          </Button>
+          {history && history.length === 0 && <p className="text-sm text-muted-foreground">Brak wpłat.</p>}
+          {history && history.length > 0 && (
+            <ul className="divide-y text-sm" data-testid="deposit-history">
+              {history.map((d) => (
+                <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                  <span className="text-muted-foreground">{new Date(`${d.deposited_on}T12:00:00`).toLocaleDateString("pl-PL")}</span>
+                  <span className="flex items-center gap-2">
+                    {d.in_ledger && <Badge variant="secondary">w wydatkach</Badge>}
+                    <span className="tabular-nums font-medium">
+                      {d.amount > 0 ? "+" : ""}
+                      {money(d.amount, currency)}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={`Cofnij ${d.amount > 0 ? "wpłatę" : "wypłatę"} ${money(Math.abs(d.amount), currency)}`}
+                      onClick={() => undoDeposit(d)}
+                    >
+                      Cofnij
+                    </Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </CardContent>
     </Card>
