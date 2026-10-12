@@ -1,5 +1,6 @@
 "use client";
 
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,9 +22,20 @@ const EMPTY: LifeContext = {
   phone_age_years: null,
   computer_age_years: null,
   has_emergency_fund: null,
+  emergency_fund_months: null,
+  saves_regularly: null,
+  invests: null,
   has_pets: null,
+  pets_description: null,
+  regular_health_costs: null,
+  does_sport: null,
+  pays_for_education: null,
+  custom: [],
   notes: null,
 };
+
+/** Tyle własnych kategorii przyjmuje API. */
+const MAX_CUSTOM = 10;
 
 type Options<T extends string> = [T, string][];
 
@@ -69,7 +81,8 @@ const toInt = (value: string, min: number, max: number): number | null => {
 };
 
 /**
- * Wywiad o sytuacji życiowej (mieszkanie, transport, praca, sprzęt, pozostałe). Wszystkie pytania są opcjonalne;
+ * Wywiad o sytuacji życiowej: mieszkanie, transport, praca, sprzęt, oszczędności, zwierzęta, zdrowie i rozwój
+ * oraz własne kategorie użytkownika. Wszystkie pytania są opcjonalne;
  * odpowiedzi zapisujemy na koncie i przekazujemy Jev jako kontekst przy proponowaniu kategorii wydatków.
  */
 export default function LifeContextCard() {
@@ -103,7 +116,15 @@ export default function LifeContextCard() {
     if (!answers) return;
     setSaving(true);
     try {
-      const body: LifeContext = { ...answers, car_age_years: hasCar ? answers.car_age_years : null, notes: answers.notes?.trim() || null };
+      const body: LifeContext = {
+        ...answers,
+        car_age_years: hasCar ? answers.car_age_years : null,
+        emergency_fund_months: answers.has_emergency_fund ? answers.emergency_fund_months : null,
+        pets_description: answers.has_pets ? answers.pets_description?.trim() || null : null,
+        // wiersz własnej kategorii bez nazwy albo opisu traktujemy jako niewypełniony
+        custom: answers.custom.map((c) => ({ name: c.name.trim(), description: c.description.trim() })).filter((c) => c.name && c.description),
+        notes: answers.notes?.trim() || null,
+      };
       const r = await api<LifeContextState>("/profile/context", { method: "PUT", body });
       setAnswers({ ...EMPTY, ...r.context });
       setSummary(r.summary);
@@ -132,7 +153,9 @@ export default function LifeContextCard() {
     </div>
   );
 
-  const yesNo = (key: "has_emergency_fund" | "has_pets", label: string) => (
+  type YesNoKey = "has_emergency_fund" | "saves_regularly" | "invests" | "has_pets" | "regular_health_costs" | "does_sport" | "pays_for_education";
+
+  const yesNo = (key: YesNoKey, label: string) => (
     <div className="grid gap-1.5">
       <label htmlFor={`life-${key}`} className="text-sm font-medium">
         {label}
@@ -150,7 +173,9 @@ export default function LifeContextCard() {
     </div>
   );
 
-  const number = (key: "household_size" | "children" | "car_age_years" | "phone_age_years" | "computer_age_years", label: string, min: number, max: number) => (
+  type NumberKey = "household_size" | "children" | "car_age_years" | "phone_age_years" | "computer_age_years" | "emergency_fund_months";
+
+  const number = (key: NumberKey, label: string, min: number, max: number) => (
     <div className="grid gap-1.5">
       <label htmlFor={`life-${key}`} className="text-sm font-medium">
         {label}
@@ -213,11 +238,97 @@ export default function LifeContextCard() {
           </fieldset>
 
           <fieldset className={group}>
-            <legend className={legend}>Pozostałe</legend>
+            <legend className={legend}>Oszczędności</legend>
             <div className="grid grid-cols-2 gap-4">
               {yesNo("has_emergency_fund", "Poduszka finansowa")}
-              {yesNo("has_pets", "Zwierzęta domowe")}
+              {answers.has_emergency_fund && number("emergency_fund_months", "Na ile miesięcy wydatków", 0, 120)}
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              {yesNo("saves_regularly", "Odkładasz regularnie?")}
+              {yesNo("invests", "Inwestujesz?")}
+            </div>
+          </fieldset>
+
+          <fieldset className={group}>
+            <legend className={legend}>Zwierzęta</legend>
+            {yesNo("has_pets", "Masz zwierzęta domowe?")}
+            {answers.has_pets && (
+              <div className="grid gap-1.5">
+                <label htmlFor="life-pets" className="text-sm font-medium">
+                  Jakie? (opcjonalnie)
+                </label>
+                <Input
+                  id="life-pets"
+                  maxLength={100}
+                  className="h-11"
+                  placeholder="np. pies i dwa koty"
+                  value={answers.pets_description ?? ""}
+                  onChange={(e) => set("pets_description", e.target.value)}
+                />
+              </div>
+            )}
+          </fieldset>
+
+          <fieldset className={group}>
+            <legend className={legend}>Zdrowie i rozwój</legend>
+            {yesNo("regular_health_costs", "Stałe wydatki na leczenie lub leki")}
+            <div className="grid grid-cols-2 gap-4">
+              {yesNo("does_sport", "Regularny sport lub siłownia")}
+              {yesNo("pays_for_education", "Płatna nauka lub kursy")}
+            </div>
+          </fieldset>
+
+          <fieldset className={group} data-testid="life-custom">
+            <legend className={legend}>Własne kategorie</legend>
+            <p className="text-xs text-muted-foreground">
+              Brakuje czegoś ważnego w Twoim życiu? Dopisz własną kategorię: krótką nazwę i opis, np. „Hobby” i „fotografia, co kilka miesięcy kupuję sprzęt”.
+            </p>
+            {answers.custom.map((item, i) => (
+              <div key={i} className="grid gap-2 rounded-lg border bg-background p-2 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
+                <div className="grid gap-1.5">
+                  <label htmlFor={`life-custom-name-${i}`} className="text-sm font-medium">
+                    Nazwa {i + 1}
+                  </label>
+                  <Input
+                    id={`life-custom-name-${i}`}
+                    maxLength={40}
+                    className="h-11"
+                    value={item.name}
+                    onChange={(e) => set("custom", answers.custom.map((c, j) => (j === i ? { ...c, name: e.target.value } : c)))}
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label htmlFor={`life-custom-description-${i}`} className="text-sm font-medium">
+                    Opis {i + 1}
+                  </label>
+                  <Input
+                    id={`life-custom-description-${i}`}
+                    maxLength={200}
+                    className="h-11"
+                    value={item.description}
+                    onChange={(e) => set("custom", answers.custom.map((c, j) => (j === i ? { ...c, description: e.target.value } : c)))}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="size-11"
+                  aria-label={`Usuń własną kategorię ${i + 1}`}
+                  onClick={() => set("custom", answers.custom.filter((_, j) => j !== i))}
+                >
+                  <Trash2Icon />
+                </Button>
+              </div>
+            ))}
+            {answers.custom.length < MAX_CUSTOM && (
+              <Button type="button" variant="outline" className="h-11 w-fit" onClick={() => set("custom", [...answers.custom, { name: "", description: "" }])}>
+                <PlusIcon /> Dodaj własną kategorię
+              </Button>
+            )}
+          </fieldset>
+
+          <fieldset className={group}>
+            <legend className={legend}>Coś jeszcze</legend>
             <div className="grid gap-1.5">
               <label htmlFor="life-notes" className="text-sm font-medium">
                 Coś jeszcze, co warto wiedzieć? (opcjonalnie)
