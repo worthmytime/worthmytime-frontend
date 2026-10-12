@@ -23,3 +23,17 @@ export async function suggestCategories(
   const { suggestions } = (await res.json()) as { suggestions: Record<string, Category> };
   return suggestions;
 }
+
+/** Jev wskazuje, która kolumna pliku z historią transakcji jest datą, kwotą, opisem i walutą (null = brak takiej kolumny). */
+export async function suggestMapping(
+  columns: { index: number; header: string; samples: string[] }[],
+): Promise<Partial<Record<"date" | "amount" | "description" | "currency", number | null>>> {
+  const res = await fetch("/api/map-columns", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columns }),
+  });
+  if (!res.ok) throw new Error("Nie udało się rozpoznać kolumn");
+  const { mapping } = (await res.json()) as { mapping: Partial<Record<"date" | "amount" | "description" | "currency", number | null>> };
+  return mapping ?? {};
+}

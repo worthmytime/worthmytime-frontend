@@ -1,0 +1,9 @@
+Historia transakcji;;;;;
+Rachunek: 12 3456 7890 1234 5678 9012 3456;;;;;
+Data operacji;Opis operacji;Rodzaj;Kwota;Waluta;Saldo po operacji
+05.10.2026;LIDL 123 WARSZAWA;Płatność kartą;-45,20;PLN;1 954,80
+06.10.2026;ORLEN 4411;Płatność kartą;-210,00;PLN;1 744,80
+06.10.2026;NETFLIX.COM;Płatność kartą;-43,00;PLN;1 701,80
+07.10.2026;LIDL 123 WARSZAWA;Płatność kartą;-30,10;PLN;1 671,70
+08.10.2026;Wynagrodzenie;Przelew przychodzący;7 000,00;PLN;8 671,70
+09.10.2026;AMAZON DE;Płatność kartą;-19,99;EUR;8 651,71

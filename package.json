@@ -15,6 +15,7 @@
     "@typesafe-ai/sdk": "^0.6.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
+    "fflate": "^0.8.3",
     "lucide-react": "^1.52.0",
     "next": "16.3.8",
     "next-themes": "^0.4.6",

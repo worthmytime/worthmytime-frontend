@@ -44,8 +44,8 @@ export function decodeStatement(buffer: ArrayBuffer): string {
   }
 }
 
-/** Minimalny parser CSV (cudzysłowy, podwojone cudzysłowy w polach, nowe linie w polach). */
-export function parseCsv(text: string): string[][] {
+/** Minimalny parser CSV (cudzysłowy, podwojone cudzysłowy w polach, nowe linie w polach); separator domyślnie przecinek. */
+export function parseCsv(text: string, delimiter = ","): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -60,7 +60,7 @@ export function parseCsv(text: string): string[][] {
         } else quoted = false;
       } else field += ch;
     } else if (ch === '"') quoted = true;
-    else if (ch === ",") {
+    else if (ch === delimiter) {
       row.push(field);
       field = "";
     } else if (ch === "\n" || ch === "\r") {
@@ -85,7 +85,7 @@ function describe(fields: string[], starts: string): string | undefined {
   return hit ? value(hit) : undefined;
 }
 
-const clean = (s: string) => s.replace(/\s+/g, " ").replace(/\/+$/, "").trim();
+export const clean = (s: string) => s.replace(/\s+/g, " ").replace(/\/+$/, "").trim();
 
 /** Sklep z adresu transakcji kartą: "JMP S.A. BIEDRONKA 336 Miasto: LUBARTOW Kraj: POLSKA" -> nazwa i miasto. */
 function placeFromLocation(location: string | undefined): { name?: string; city?: string } {
@@ -120,9 +120,13 @@ async function sha256Hex(text: string): Promise<string> {
 
 const number = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
 
+/** Wiersz nagłówka wyciągu iPKO albo -1, gdy plik ma inny układ (wtedy kolumny rozpoznaje import uniwersalny). */
+export const ipkoHeaderAt = (rows: string[][]) =>
+  rows.findIndex((r) => r[0]?.toLowerCase().includes("data operacji") && r[2]?.toLowerCase().includes("typ transakcji"));
+
 export async function parseStatement(text: string): Promise<ParsedStatement> {
   const rows = parseCsv(text);
-  const headerAt = rows.findIndex((r) => r[0]?.toLowerCase().includes("data operacji") && r[2]?.toLowerCase().includes("typ transakcji"));
+  const headerAt = ipkoHeaderAt(rows);
   if (headerAt < 0) throw new Error("To nie wygląda na wyciąg z iPKO (brak nagłówka z kolumnami Data operacji i Typ transakcji).");
 
   const seen = new Map<string, number>();
