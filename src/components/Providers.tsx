@@ -10,7 +10,8 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <TooltipProvider>
         <AppProvider>{children}</AppProvider>
-        <Toaster position="top-center" richColors />
+        {/* odsunięte od góry o wysokość paska nawigacji, żeby powiadomienie nie zasłaniało menu */}
+        <Toaster position="top-center" richColors offset={72} mobileOffset={72} />
       </TooltipProvider>
     </ThemeProvider>
   );

@@ -31,8 +31,9 @@ const plural = (n: number, one: string, few: string, many: string, fraction: str
 
 export const yearsLabel = (y: number) => plural(y, "rok", "lata", "lat", "roku");
 export const monthsLabel = (m: number) => plural(m, "miesiąc", "miesiące", "miesięcy", "miesiąca");
+// priority: kolejność ważności kategorii pokazywana w interfejsie (P1 = najważniejsza); API ma własne kody z modelu budżetu
 export const CATEGORY_INFO = {
-  NEEDS: { label: "Potrzeby", priority: "P0", hint: "mieszkanie, jedzenie, media, konieczny transport, leczenie, zobowiązania" },
+  NEEDS: { label: "Potrzeby", priority: "P1", hint: "mieszkanie, jedzenie, media, konieczny transport, leczenie, zobowiązania" },
   FUTURE: { label: "Przyszłość", priority: "P2", hint: "rezerwa, poduszka bezpieczeństwa, oszczędności, inwestycje, emerytura" },
   GOALS: { label: "Cele", priority: "P3", hint: "wakacje, samochód, elektronika, remont, większe zakupy" },
   FUN: { label: "Przyjemności", priority: "P4", hint: "rozrywka, restauracje, gry, dodatkowe subskrypcje, spontaniczne zakupy" },

@@ -1,5 +1,6 @@
-import { ArrowRightIcon, CalculatorIcon, CheckIcon, ClockIcon, Gamepad2Icon, ShoppingBagIcon } from "lucide-react";
+import { ArrowRightIcon, CalculatorIcon, ClockIcon, ShoppingBagIcon } from "lucide-react";
 import Link from "next/link";
+import { HomeAccountNote, HomeExample } from "@/components/HomeExample";
 import { cn } from "@/lib/utils";
 
 const steps = [
@@ -21,12 +22,6 @@ const steps = [
     title: "Zobacz cenę w czasie",
     text: "Godziny, procent wypłaty, miesiące pracy i maksymalna miesięczna wpłata. Odczekaj na liście życzeń, zanim kupisz.",
   },
-];
-
-const tiles = [
-  ["5,4", "dnia roboczego"],
-  ["1,1", "tyg. roboczego"],
-  ["0,25", "miesiąca pracy"],
 ];
 
 const ctaPrimary =
@@ -59,77 +54,10 @@ export default function Home() {
               Porównaj dwa scenariusze
             </Link>
           </div>
-          <p className="flex items-center gap-2 text-[13px] text-muted-foreground">
-            <CheckIcon className="size-4 text-primary" aria-hidden />
-            Bez rejestracji. Konto potrzebne dopiero do zapisu historii.
-          </p>
+          <HomeAccountNote />
         </div>
 
-        <div
-          aria-label="Przykładowy wynik"
-          role="group"
-          className="relative isolate grid max-w-[480px] gap-5 overflow-hidden rounded-[28px] bg-brand p-7 text-brand-foreground shadow-[0_30px_60px_-30px] shadow-brand md:justify-self-end"
-        >
-          <svg
-            aria-hidden
-            width="320"
-            height="320"
-            viewBox="0 0 320 320"
-            fill="none"
-            className="pointer-events-none absolute -top-[120px] -right-[120px] -z-10"
-          >
-            <circle cx="160" cy="160" r="150" stroke="#ffffff12" strokeWidth="2" />
-            <circle cx="160" cy="160" r="110" stroke="#ffffff0d" strokeWidth="2" />
-            <circle cx="160" cy="160" r="70" stroke="#ffffff0a" strokeWidth="2" />
-          </svg>
-          <div className="flex items-center gap-3">
-            <span className="grid size-11 place-items-center rounded-[14px] bg-white/10">
-              <Gamepad2Icon className="size-[22px] text-lime" aria-hidden />
-            </span>
-            <div>
-              <div className="text-sm text-brand-muted">PlayStation 5</div>
-              <div className="text-lg font-semibold tabular-nums">2 500,00 zł</div>
-            </div>
-          </div>
-          <div>
-            <div className="text-sm text-brand-muted">kosztuje Cię</div>
-            <div className="font-heading text-[5.5rem] leading-[0.95] font-extrabold tracking-[-0.045em] text-lime tabular-nums sm:text-[6.5rem]">
-              43,3<span className="ml-1.5 text-[2.5rem] font-bold tracking-normal">h</span>
-            </div>
-            <div className="mt-1.5 text-sm text-brand-muted">pracy przy stawce 57,69 zł/h</div>
-          </div>
-          <div className="flex items-center gap-4 rounded-[18px] bg-white/[0.07] px-4 py-3.5">
-            <div className="relative size-16 flex-none">
-              <svg width="64" height="64" viewBox="0 0 120 120" aria-hidden>
-                <circle cx="60" cy="60" r="50" fill="none" stroke="#ffffff26" strokeWidth="14" />
-                <circle
-                  cx="60"
-                  cy="60"
-                  r="50"
-                  fill="none"
-                  stroke="#b8f26b"
-                  strokeWidth="14"
-                  strokeLinecap="round"
-                  strokeDasharray="78.5 314.2"
-                  transform="rotate(-90 60 60)"
-                />
-              </svg>
-              <span className="absolute inset-0 grid place-items-center text-sm font-bold">25%</span>
-            </div>
-            <div>
-              <div className="text-[17px] leading-snug font-semibold">To 25% Twojej miesięcznej wypłaty</div>
-              <div className="mt-0.5 text-[13px] text-brand-muted">Tyle z miesięcznej pracy pochłania ten wydatek.</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            {tiles.map(([v, l]) => (
-              <div key={l} className="rounded-2xl border border-white/10 bg-white/[0.06] px-1 py-3">
-                <div className="font-heading text-[22px] font-bold tabular-nums">{v}</div>
-                <div className="text-xs text-brand-muted">{l}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <HomeExample />
       </section>
 
       <section aria-labelledby="how" className="grid gap-6">

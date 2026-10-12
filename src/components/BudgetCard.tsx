@@ -87,7 +87,7 @@ export default function BudgetCard({ budget, currency = "PLN" }: { budget: Budge
         <CardTitle className="flex flex-wrap items-center gap-2">
           Plan budżetowy
           <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-            {info.label} · {budget.priority}
+            {info.label} · {info.priority}
           </span>
         </CardTitle>
         <CardDescription>
