@@ -2,7 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
-import { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
@@ -11,6 +12,7 @@ import { Field } from "@/components/FormField";
 import OnboardingCard from "@/components/OnboardingCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
@@ -35,7 +37,8 @@ const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? parseNumber(
 export default function BudgetPage() {
   const { ready, profile, monthlyIncome, budget, saveBudget, loggedIn } = useApp();
   const ledger = useLedger();
-  if (!ready || ledger.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
+  // nie czekamy na rejestr wydatków: formularz zależy tylko od planu, a kwoty "wydane" dochodzą, gdy rejestr się wczyta
+  if (!ready) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
   return (
     <BudgetForm
@@ -98,17 +101,19 @@ function BudgetForm({
   const savedForm = useMemo(() => JSON.stringify(budgetToForm(budget)), [budget]);
   const dirty = JSON.stringify(w) !== savedForm;
 
-  // przejście na inną stronę (menu, linki) z niezapisanymi zmianami wymaga potwierdzenia
+  // przejście na inną stronę (menu, linki) z niezapisanymi zmianami zatrzymujemy i pytamy w oknie aplikacji;
+  // systemowe okno przeglądarki bywa zamykane automatycznie, więc na nim nie polegamy
+  const router = useRouter();
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
   useEffect(() => {
     if (!dirty) return;
     const onClick = (e: MouseEvent) => {
       if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
       if (!link || link.target === "_blank" || link.origin !== window.location.origin || link.pathname === window.location.pathname) return;
-      if (!window.confirm("Masz niezapisane zmiany w budżecie. Wyjść bez zapisywania?")) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      setLeaveTo(`${link.pathname}${link.search}${link.hash}`);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
@@ -247,6 +252,23 @@ function BudgetForm({
           </Button>
         </div>
       </form>
+
+      <Dialog open={leaveTo != null} onOpenChange={(open) => !open && setLeaveTo(null)}>
+        <DialogContent data-testid="budget-leave-dialog">
+          <DialogHeader>
+            <DialogTitle>Masz niezapisane zmiany w budżecie</DialogTitle>
+            <DialogDescription>Jeśli wyjdziesz teraz, zmiany w podziale dochodu przepadną.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" className="h-11" onClick={() => leaveTo && router.push(leaveTo)}>
+              Wyjdź bez zapisywania
+            </Button>
+            <Button type="button" className="h-11" onClick={() => setLeaveTo(null)}>
+              Zostań i dokończ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <p className="text-xs text-muted-foreground">
         Podział 50/25/15/10 to tylko punkt startowy, a nie uniwersalna reguła finansowa - dostosuj go do własnej sytuacji. Wyniki wynikają z Twoich założeń i nie są poradą finansową.

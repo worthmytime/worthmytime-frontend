@@ -82,16 +82,15 @@ test("budżet: pasek zapisu pokazuje stan i sumę, a wyjście z niezapisanymi zm
   await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("40");
   await expect(status).toHaveText("Masz niezapisane zmiany.");
 
-  // przejście na inną stronę: odmowa zostawia nas w Budżecie z wpisanymi wartościami
+  // przejście na inną stronę zatrzymuje okno w aplikacji; "Zostań" zostawia nas w Budżecie z wpisanymi wartościami
   const nav = page.getByRole("navigation", { name: isMobile ? "Nawigacja mobilna" : "Główna nawigacja" });
-  const messages: string[] = [];
-  page.once("dialog", (d) => {
-    messages.push(d.message());
-    void d.dismiss();
-  });
   await nav.getByRole("link", { name: "Wydatki" }).click();
+  const leave = page.getByTestId("budget-leave-dialog");
+  await expect(leave).toContainText("Masz niezapisane zmiany w budżecie");
   await expect(page).toHaveURL(/\/budget$/);
-  expect(messages).toEqual(["Masz niezapisane zmiany w budżecie. Wyjść bez zapisywania?"]);
+  await leave.getByRole("button", { name: "Zostań i dokończ" }).click();
+  await expect(leave).toBeHidden();
+  await expect(page).toHaveURL(/\/budget$/);
   await expect(page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)")).toHaveValue("20");
 
   // po zapisie nie ma o co pytać
@@ -100,4 +99,14 @@ test("budżet: pasek zapisu pokazuje stan i sumę, a wyjście z niezapisanymi zm
   await expect(status).toHaveText("Wszystkie zmiany zapisane.");
   await nav.getByRole("link", { name: "Wydatki" }).click();
   await expect(page).toHaveURL(/\/expenses$/);
+
+  // "Wyjdź bez zapisywania" przechodzi dalej i porzuca zmianę
+  await page.goto("/budget");
+  await page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)").fill("15");
+  await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("45");
+  await nav.getByRole("link", { name: "Wydatki" }).click();
+  await page.getByTestId("budget-leave-dialog").getByRole("button", { name: "Wyjdź bez zapisywania" }).click();
+  await expect(page).toHaveURL(/\/expenses$/);
+  const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
+  expect(saved.percentages.FUN).toBe(20); // zostaje wartość z ostatniego zapisu
 });
