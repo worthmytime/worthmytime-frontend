@@ -6,7 +6,7 @@ import { useApp } from "@/components/AppProvider";
 import { api, type BudgetState, type Category, type Expense, type MonthSummary } from "./api";
 import { errorMessage } from "./forms";
 import type { ImportedExpense } from "./ipko";
-import { lastPeriods, periodOf, round2, summarize, todayIso, totalsFor, zeroTotals } from "./ledger";
+import { lastPeriods, notifyMoneyChanged, periodOf, round2, summarize, todayIso, totalsFor, zeroTotals } from "./ledger";
 
 const MONTHS = 6;
 
@@ -64,7 +64,10 @@ export function useLedger() {
   }, [loggedIn, version]);
 
   const loading = loggedIn && !loaded;
-  const reload = useCallback(async () => setVersion((v) => v + 1), []);
+  const reload = useCallback(async () => {
+    setVersion((v) => v + 1);
+    notifyMoneyChanged(); // kwota w pasku nawigacji liczy się z tych samych wydatków
+  }, []);
   const add = useCallback(
     async (e: NewExpense) => {
       if (loggedIn) {

@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, clearLegacyToken, hasSession, legacyToken, type BudgetPlan, type BudgetState, type Expense, type ExpenseTemplate, type Profile, type RecurringExpense } from "@/lib/api";
-import { effectivePlan, readLocalLedger, writeLocalLedger } from "@/lib/ledger";
+import { effectivePlan, notifyMoneyChanged, readLocalLedger, writeLocalLedger } from "@/lib/ledger";
 import { materialize, readLocalRecurring, writeLocalRecurring } from "@/lib/recurring";
 import { readLocalTemplates, writeLocalTemplates } from "@/lib/templates";
 
@@ -141,6 +141,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     async (p: Profile) => {
       if (email) {
         setProfile(await api<Profile>("/profile", { method: "PUT", body: p }));
+        notifyMoneyChanged();
       } else {
         window.localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(p));
         setProfile(p);
@@ -153,6 +154,7 @@ export default function AppProvider({ children }: { children: React.ReactNode })
     async (b: BudgetPlan) => {
       if (email) {
         setBudget(toPlan(await api<BudgetState>("/budget", { method: "PUT", body: b })));
+        notifyMoneyChanged(); // raty i dochód wpływają na kwotę w pasku nawigacji
       } else {
         window.localStorage.setItem(LOCAL_BUDGET_KEY, JSON.stringify(b));
         setBudget(b);

@@ -72,3 +72,10 @@ export function writeLocalLedger(items: Expense[]) {
 export function effectivePlan(plan: BudgetPlan, ledger: Expense[], now = new Date()): BudgetPlan {
   return { percentages: plan.percentages, spent: totalsFor(ledger, periodOf(now)), loans: plan.loans ?? [] };
 }
+
+/** Zdarzenie przeglądarki: zmieniły się wydatki albo budżet (słucha go kwota w pasku nawigacji). */
+export const MONEY_CHANGED = "wmt:money-changed";
+
+export function notifyMoneyChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(MONEY_CHANGED));
+}
