@@ -225,10 +225,14 @@ export default function ImportButton({ currency, onImport }: Props) {
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
                 {(Object.keys(FIELD_LABEL) as MappedField[]).map((field) => (
-                  <label key={field} className="grid gap-1.5 text-sm font-medium">
-                    {FIELD_LABEL[field]}
+                  <div key={field} className="grid gap-1.5">
+                    {/* etykieta obok listy, a nie wokół niej: inaczej jej treścią byłyby też nazwy wszystkich kolumn */}
+                    <label htmlFor={`import-map-${field}`} className="text-sm font-medium">
+                      {FIELD_LABEL[field]}
+                    </label>
                     <select
-                      className="h-11 rounded-lg border border-input bg-background px-2 text-sm font-normal"
+                      id={`import-map-${field}`}
+                      className="h-11 rounded-lg border border-input bg-background px-2 text-sm"
                       value={source.mapping[field] ?? ""}
                       onChange={(e) => remap(field, e.target.value)}
                     >
@@ -240,7 +244,7 @@ export default function ImportButton({ currency, onImport }: Props) {
                         </option>
                       ))}
                     </select>
-                  </label>
+                  </div>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
