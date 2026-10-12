@@ -20,6 +20,7 @@ import { api, type BudgetState, type Category, type WishlistItem, type WishlistS
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage, requiredNumber, numeric } from "@/lib/forms";
 import { cn } from "@/lib/utils";
+import { notifyMoneyChanged } from "@/lib/ledger";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -119,6 +120,7 @@ export default function WishlistPage() {
     try {
       await api(`/wishlist/${item.id}/decision`, { body });
       setBuying(null);
+      notifyMoneyChanged();
       toast.success(
         decision === "DROPPED"
           ? "Odpuszczone - dobra decyzja dla Twojego czasu"
@@ -137,6 +139,7 @@ export default function WishlistPage() {
     try {
       await api(`/wishlist/${item.id}/decision`, { method: "DELETE" });
       toast.success(item.status === "BOUGHT" ? "Zakup cofnięty, wydatek usunięty z rejestru" : "Decyzja cofnięta");
+      notifyMoneyChanged();
       await load();
     } catch (e) {
       toast.error(errorMessage(e));

@@ -24,6 +24,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { money } from "@/lib/format";
+import { useMonthBalance } from "@/lib/use-balance";
 import { cn } from "@/lib/utils";
 import AlertsBell from "./AlertsBell";
 import { useApp } from "./AppProvider";
@@ -59,7 +61,8 @@ const isActive = (path: string, href: string) => path === href || path.startsWit
 
 export default function Nav() {
   const path = usePathname();
-  const { email, logout } = useApp();
+  const { email, logout, profile } = useApp();
+  const balance = useMonthBalance();
   const [sheetOpen, setSheetOpen] = useState(false);
   const moreActive = more.some((m) => isActive(path, m.href));
 
@@ -119,6 +122,20 @@ export default function Nav() {
           </nav>
 
           <div className="ml-auto flex items-center gap-1">
+            {balance != null && (
+              <Link
+                href="/expenses"
+                title="Zostało w tym miesiącu: dochód minus wydatki i raty"
+                aria-label={`Zostało w tym miesiącu: ${money(balance, profile?.currency)}`}
+                className={cn(
+                  "mr-1 inline-flex h-9 items-center rounded-full border bg-card px-3 text-sm font-semibold whitespace-nowrap tabular-nums hover:border-foreground",
+                  balance < 0 && "border-destructive/40 text-destructive",
+                )}
+                data-testid="nav-balance"
+              >
+                {money(balance, profile?.currency)}
+              </Link>
+            )}
             {email ? (
               <>
                 <Link

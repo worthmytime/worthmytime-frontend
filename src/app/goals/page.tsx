@@ -21,6 +21,7 @@ import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber, parseN
 import { CATEGORY_INFO } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { cn } from "@/lib/utils";
+import { notifyMoneyChanged } from "@/lib/ledger";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -208,6 +209,7 @@ function GoalCard({
     try {
       await api(`/goals/${g.id}/deposits/${d.id}`, { method: "DELETE" });
       toast.success(d.in_ledger ? "Wpłata cofnięta, wydatek usunięty z rejestru" : "Cofnięto");
+      notifyMoneyChanged();
       await Promise.all([onChange(), loadHistory()]);
     } catch (e) {
       toast.error(errorMessage(e));
@@ -224,6 +226,7 @@ function GoalCard({
       // wypłata nigdy nie tworzy wydatku, więc pytanie o rejestr dotyczy tylko wpłaty
       await api(`/goals/${g.id}/deposit`, { body: sign === 1 ? { amount: value, add_expense: addExpense } : { amount: -value } });
       setAmount("");
+      notifyMoneyChanged();
       toast.success(sign === 1 ? (addExpense ? "Wpłata dopisana, także do wydatków" : "Wpłata dopisana") : "Wypłata zapisana");
       await Promise.all([onChange(), history ? loadHistory() : null]);
     } catch (e) {
