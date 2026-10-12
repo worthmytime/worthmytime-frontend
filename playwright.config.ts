@@ -19,8 +19,9 @@ export default defineConfig({
     { name: "mobile", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
-    // build produkcyjny: bez kompilacji "na żądanie", testy nie ścigają się z hydratacją
-    command:`npm run build && npm run start -- -p ${PORT}`,
+    // build produkcyjny: bez kompilacji "na żądanie", testy nie ścigają się z hydratacją;
+    // CI buduje osobnym krokiem (E2E_PREBUILT=1), a lokalnie Playwright buduje sam
+    command: process.env.E2E_PREBUILT ? `npm run start -- -p ${PORT}` : `npm run build && npm run start -- -p ${PORT}`,
     url: `http://localhost:${PORT}`,
     env: { NEXT_DIST_DIR: ".next-e2e" },
     reuseExistingServer: !process.env.CI,

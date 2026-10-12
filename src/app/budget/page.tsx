@@ -112,7 +112,7 @@ function BudgetForm({
   }
 
   return (
-    <div className="mx-auto grid max-w-2xl gap-6">
+    <div className="mx-auto grid max-w-5xl gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Plan budżetu</h1>
         <p className="text-sm text-muted-foreground">
@@ -122,6 +122,7 @@ function BudgetForm({
       </div>
 
       <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4">
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
         {BUDGET_CATEGORIES.map((c) => {
           const info = CATEGORY_INFO[c];
           const amount = (income * pct(c)) / 100;
@@ -150,6 +151,7 @@ function BudgetForm({
             </Card>
           );
         })}
+        </div>
 
         <Card data-testid="loans-card">
           <CardHeader>

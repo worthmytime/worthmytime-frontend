@@ -31,8 +31,8 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
-  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata); brak = wpis ręczny */
-  source_type?: "RECURRING" | "LOAN" | null;
+  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku); brak = wpis ręczny */
+  source_type?: "RECURRING" | "LOAN" | "IMPORT" | null;
   source_id?: string | null;
 }
 
@@ -50,6 +50,16 @@ export interface RecurringExpense {
 }
 
 export type RecurringIn = Pick<RecurringExpense, "name" | "category" | "amount" | "day_of_month" | "active">;
+
+/** Szablon szybkiego wydatku (np. kawa): jedno dotknięcie dopisuje wpis do rejestru. */
+export interface ExpenseTemplate {
+  id: string;
+  name: string;
+  category: Category;
+  amount: number;
+}
+
+export type ExpenseTemplateIn = Omit<ExpenseTemplate, "id">;
 
 export interface MonthSummary {
   month: string; // YYYY-MM

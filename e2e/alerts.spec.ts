@@ -55,7 +55,7 @@ test("dzwonek (bez konta): rata w ciągu 3 dni i brak alertów, gdy wszystko w n
   );
   await page.goto("/expenses");
   await page.getByTestId("alerts-bell").click();
-  const alert = page.getByTestId("alert-LOAN_DUE:local:Kredyt auto");
+  const alert = page.getByTestId("alert-LOAN_DUE:local:Kredyt auto:800");
   await expect(alert).toContainText("Rata: Kredyt auto");
   await expect(alert).toContainText("za 2 dni");
   await alert.getByRole("link", { name: "Przejdź do ekranu" }).click();

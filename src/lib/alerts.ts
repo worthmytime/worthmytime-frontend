@@ -86,7 +86,7 @@ export function localAlerts({ monthlyIncome, plan, ledger, now = new Date() }: L
     const next = loan.payment_day ? nextInstallment(loan, now) : null;
     if (!next || next.inDays > LOAN_DUE_DAYS) return;
     const due = isoDate(next.date);
-    const key = `local:${loan.name}`;
+    const key = `local:${loan.name}:${loan.installment_amount}`;
     const paid = ledger.some((e) => e.source_type === "LOAN" && e.source_id === key && e.spent_on.slice(0, 7) === due.slice(0, 7));
     if (paid) return;
     out.push({

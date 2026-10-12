@@ -33,7 +33,7 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   await page.getByLabel("Notatka (opcjonalnie)").fill("kino");
   await page.getByRole("button", { name: "Dopisz wydatek" }).click();
 
-  await expect(page.getByTestId("expense-list")).toContainText("kino");
+  await expect(page.getByTestId("expense-list-FUN")).toContainText("kino"); // kategoria rozwija się po dopisaniu
   // budżet FUN przy dochodzie 7 000 zł to 700 zł: 200 / 700 = 29%
   await expect(page.getByTestId("usage-FUN")).toContainText("29%");
 
@@ -52,6 +52,7 @@ test("rejestr wydatków (bez konta): dopisanie, zużycie budżetu, usunięcie i 
   expect(sent?.budget?.spent.FUN).toBe(200);
 
   await page.goto("/expenses");
+  await page.getByTestId("usage-FUN").getByRole("button", { expanded: false }).click(); // po wejściu kategorie są zwinięte
   await page.getByRole("button", { name: /Usuń wydatek kino/ }).click();
   await expect(page.getByText("Nic jeszcze nie dopisano.")).toBeVisible();
 });
@@ -67,13 +68,13 @@ test("dzienny limit i prognoza: ile na dzień, pasek dzisiejszych wydatków i os
 
   await page.getByLabel("Kwota").fill("400");
   await page.getByRole("button", { name: "Dopisz wydatek" }).click();
-  await expect(page.getByTestId("expense-list")).toBeVisible();
+  await expect(page.getByTestId("expense-list-FUN")).toBeVisible();
 
   // zostało 300 zł na 22 dni = 13,64 zł dziennie; tempo 40 zł dziennie wyczerpie budżet za 7 dni
   const daily = page.getByTestId("daily-FUN");
   await expect(daily).toContainText(/Zostało\s300,00\szł na 22 dni/);
   await expect(page.getByTestId("daily-FUN-daily")).toContainText(/13,64\szł/);
-  await expect(page.getByTestId("daily-FUN-warning")).toContainText("skończysz za 7 dni");
+  await expect(page.getByTestId("daily-FUN-warning")).toContainText("tej kwoty wystarczy na 7 dni");
 
   // pasek w formularzu: dziś wydano 400 zł z dziennego limitu 13,64 zł
   await expect(page.getByTestId("form-daily-limit")).toContainText(/Dziś w tej kategorii: 400,00\szł z 13,64\szł/);
@@ -112,7 +113,8 @@ test("stałe wydatki (bez konta): dopisują się do rejestru w dniu płatności 
   });
   await page.goto("/expenses");
 
-  const list = page.getByTestId("expense-list");
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  const list = page.getByTestId("expense-list-NEEDS");
   await expect(list).toContainText("Czynsz");
   await expect(list.getByTestId("expense-source")).toHaveText("stały");
   await expect(list.locator("li")).toHaveCount(1); // tylko październik jest w bieżącym miesiącu
@@ -121,7 +123,8 @@ test("stałe wydatki (bez konta): dopisują się do rejestru w dniu płatności 
 
   // odświeżenie nie dopisuje duplikatów
   await page.reload();
-  await expect(page.getByTestId("expense-list").locator("li")).toHaveCount(1);
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  await expect(page.getByTestId("expense-list-NEEDS").locator("li")).toHaveCount(1);
 
   // nowy stały wydatek: pojawia się na liście szablonów z sumą miesięczną
   const card = page.getByTestId("recurring-card");
@@ -161,7 +164,8 @@ test("raty: oznaczenie jako zapłacona zapisuje wpis i nie liczy raty drugi raz"
   await expect(page.getByTestId("paid-0")).toContainText("Opłacona");
   await expect(page.getByRole("button", { name: /jako zapłaconą/ })).toHaveCount(0);
 
-  const list = page.getByTestId("expense-list");
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  const list = page.getByTestId("expense-list-NEEDS");
   await expect(list).toContainText("Rata: Kredyt auto");
   await expect(list.getByTestId("expense-source")).toHaveText("rata");
   // rata jest już zobowiązaniem w Potrzebach, więc wpis nie podnosi wykorzystania budżetu
@@ -221,6 +225,98 @@ test("stałe wydatki i raty (konto): wywołania API i oznaczenie raty identyfika
 
   await page.getByRole("button", { name: "Oznacz ratę Kredyt auto jako zapłaconą" }).click();
   await expect.poll(() => paid).toEqual({ paid_on: "2026-10-12" });
+});
+
+test("lista życzeń: usuwanie rozstrzygniętych pozycji z potwierdzeniem", async ({ page }) => {
+  await asLoggedIn(page);
+  const work = { ...RESULT.work, hours: 61.9 };
+  const base = { category: null, cooldown_days: 30, created_at: "2026-09-01T10:00:00Z", ready_at: "2026-10-01T10:00:00Z", days_left: 0, ready: false, work };
+  let items = [
+    { ...base, id: "w1", name: "Monitor (pomyłka)", price: 3000, status: "DROPPED", decided_at: "2026-10-02T10:00:00Z" },
+    { ...base, id: "w2", name: "Słuchawki", price: 450, status: "BOUGHT", decided_at: "2026-10-03T10:00:00Z" },
+  ];
+  await page.route("**/api/v1/wishlist", (r) =>
+    json(r, { items, stats: { dropped_count: items.filter((i) => i.status === "DROPPED").length, dropped_total: 0, dropped_hours: 0, waiting_count: 0, waiting_total: 0, ready_count: 0 }, currency: "PLN" }),
+  );
+  const deleted: string[] = [];
+  await page.route("**/api/v1/wishlist/*", (r) => {
+    if (r.request().method() !== "DELETE") return r.fallback();
+    const id = new URL(r.request().url()).pathname.split("/").pop()!;
+    deleted.push(id);
+    items = items.filter((i) => i.id !== id);
+    return json(r, { deleted: true });
+  });
+
+  await page.goto("/wishlist");
+  const resolved = page.getByRole("region", { name: "Rozstrzygnięte" });
+  await expect(resolved).toContainText("Monitor (pomyłka)");
+  await expect(resolved).toContainText("Słuchawki");
+
+  // najpierw potwierdzenie z informacją o skutku; anulowanie nic nie usuwa
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Monitor (pomyłka)" }).click();
+  const confirm = page.getByRole("group", { name: /Potwierdź usunięcie: Monitor/ });
+  await expect(confirm).toContainText("Przestanie się liczyć do zaoszczędzonej kwoty");
+  await confirm.getByRole("button", { name: "Anuluj" }).click();
+  await expect(confirm).toHaveCount(0);
+  expect(deleted).toEqual([]);
+
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Monitor (pomyłka)" }).click();
+  await page.getByRole("group", { name: /Potwierdź usunięcie: Monitor/ }).getByRole("button", { name: "Usuń", exact: true }).click();
+  await expect.poll(() => deleted).toEqual(["w1"]);
+  await expect(resolved).not.toContainText("Monitor (pomyłka)");
+  await expect(resolved).toContainText("Słuchawki"); // druga pozycja zostaje
+  await expect(page.getByText("Usunięto: Monitor (pomyłka)")).toBeVisible();
+
+  // kupioną pozycję usuwa się bez ostrzeżenia o zaoszczędzonej kwocie
+  await page.getByRole("button", { name: "Usuń rozstrzygniętą pozycję Słuchawki" }).click();
+  await expect(page.getByRole("group", { name: /Potwierdź usunięcie: Słuchawki/ })).not.toContainText("zaoszczędzonej");
+});
+
+test("raty w drzewie wydatków: nieopłacone pod Potrzebami z terminem, opłacenie jednej nie rusza drugiej", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-10-07T10:00:00"));
+  await withLocalProfile(page);
+  await page.addInitScript(() => {
+    if (window.localStorage.getItem("wmt_budget")) return; // nie nadpisuj stanu po odświeżeniu strony
+    window.localStorage.setItem(
+      "wmt_budget",
+      JSON.stringify({
+        percentages: { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 },
+        spent: { NEEDS: 0, FUTURE: 0, GOALS: 0, FUN: 0 },
+        // dwie pożyczki o tej samej nazwie i tym samym terminie, różne raty
+        loans: [
+          { name: "Pożyczka gotówkowa", installment_amount: 540.18, installments_left: 12, payment_day: 11 },
+          { name: "Pożyczka gotówkowa", installment_amount: 926.73, installments_left: 24, payment_day: 11 },
+        ],
+      }),
+    );
+  });
+  await page.goto("/expenses");
+
+  const needs = page.getByTestId("usage-NEEDS");
+  await expect(needs).toContainText("2 raty do zapłaty");
+  await needs.getByRole("button", { expanded: false }).click();
+
+  const rows = page.getByTestId("loan-rows-NEEDS");
+  await expect(rows.locator("li")).toHaveCount(2);
+  await expect(rows).toContainText("rata do zapłaty");
+  await expect(rows).toContainText(/540,18\szł/);
+  await expect(rows).toContainText(/926,73\szł/);
+  await expect(rows).toContainText("11 października 2026");
+  await expect(rows).toContainText("za 4 dni");
+
+  // opłacenie jednej raty (kwota 540,18) nie oznacza drugiej, o tej samej nazwie
+  await rows.locator("li", { hasText: "540,18" }).getByRole("button", { name: "Zapłacona: rata Pożyczka gotówkowa" }).click();
+  await expect(rows.locator("li")).toHaveCount(1);
+  await expect(rows).toContainText(/926,73\szł/);
+  await expect(needs).toContainText("1 rata do zapłaty");
+  const list = page.getByTestId("expense-list-NEEDS");
+  await expect(list).toContainText("Rata: Pożyczka gotówkowa");
+  await expect(list.getByTestId("expense-source")).toHaveText("rata");
+
+  // opłacona rata nie wraca do listy "do zapłaty" po odświeżeniu
+  await page.reload();
+  await page.getByTestId("usage-NEEDS").getByRole("button", { expanded: false }).click();
+  await expect(page.getByTestId("loan-rows-NEEDS").locator("li")).toHaveCount(1);
 });
 
 test("lista życzeń: ostygnięcie, odpuszczenie i statystyka oszczędności", async ({ page }) => {

@@ -31,6 +31,8 @@ export default function DailyLimit({ budget, variableSpent, fixed = 0, currency,
   }
 
   const usedToday = spentToday ?? 0;
+  // mało na cały miesiąc to osobny problem niż tempo dzienne: mówimy o nim wprost
+  const leftPercent = f.budget > 0 ? (f.available / f.budget) * 100 : 100;
   const todayPercent = f.dailyLimit > 0 ? Math.min(100, (usedToday / f.dailyLimit) * 100) : 0;
   return (
     <div className="grid gap-1.5 text-sm" data-testid={testId} data-status={f.status}>
@@ -58,12 +60,20 @@ export default function DailyLimit({ budget, variableSpent, fixed = 0, currency,
           </p>
         </div>
       )}
+      {leftPercent < 15 && (
+        <p className="text-xs text-muted-foreground" data-testid={`${testId}-low`}>
+          W tym miesiącu zostało już tylko {Math.max(0, Math.round(leftPercent))}% budżetu tej kategorii.
+        </p>
+      )}
       {f.runsOutInDays != null && f.runsOutOn && (
         <p className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400" data-testid={`${testId}-warning`}>
           <AlertTriangleIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
-            Przy obecnym tempie ({money(f.pacePerDay, currency)} dziennie) skończysz za {daysLabel(f.runsOutInDays)} (
-            {f.runsOutOn.toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}).
+            Przy obecnym tempie wydatków ({money(f.pacePerDay, currency)} dziennie) tej kwoty wystarczy{" "}
+            {f.runsOutInDays === 0
+              ? "na mniej niż dzień"
+              : `na ${daysLabel(f.runsOutInDays)} (do ${f.runsOutOn.toLocaleDateString("pl-PL", { day: "numeric", month: "long" })})`}
+            , a do końca miesiąca zostało {daysLabel(f.daysLeft)}.
           </span>
         </p>
       )}
