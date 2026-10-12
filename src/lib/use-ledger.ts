@@ -128,19 +128,27 @@ export function useLedger() {
     [loggedIn, reload, localLedger, setLocalLedger],
   );
 
-  /** Import wielu wydatków (np. z wyciągu): ponowny import tych samych wierszy nie tworzy duplikatów. */
+  /**
+   * Import wielu wydatków (np. z wyciągu): ponowny import tych samych wierszy nie tworzy duplikatów.
+   * Na koncie import trafia do historii zdarzeń pod nazwą pliku (`undoable`), skąd można go cofnąć.
+   */
   const importMany = useCallback(
-    async (list: ImportedExpense[]): Promise<{ created: number; skipped: number }> => {
+    async (list: ImportedExpense[], fileName?: string): Promise<{ created: number; skipped: number; undoable?: boolean }> => {
       if (loggedIn) {
         let created = 0;
         let skipped = 0;
+        let batchId: string | undefined;
         for (let i = 0; i < list.length; i += 500) {
-          const r = await api<{ created: number; skipped: number }>("/expenses/import", { body: { items: list.slice(i, i + 500) } });
+          // duży plik idzie w kilku żądaniach, ale w historii ma być jednym importem
+          const r = await api<{ created: number; skipped: number; batch_id?: string }>("/expenses/import", {
+            body: { items: list.slice(i, i + 500), ...(batchId ? { batch_id: batchId } : fileName ? { file_name: fileName.slice(0, 255) } : {}) },
+          });
           created += r.created;
           skipped += r.skipped;
+          batchId = batchId ?? r.batch_id;
         }
         await reload();
-        return { created, skipped };
+        return { created, skipped, undoable: !!batchId };
       }
       const have = new Set(localLedger.filter((e) => e.source_type === "IMPORT").map((e) => e.source_id));
       const fresh: Expense[] = [];

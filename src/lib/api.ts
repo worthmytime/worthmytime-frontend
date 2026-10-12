@@ -103,6 +103,20 @@ export interface MonthReport {
   entries: number;
 }
 
+/** Jeden import wyciągu w historii zdarzeń (`GET /imports`); cofnięcie usuwa wpisy, które dopisał. */
+export interface ImportBatch {
+  id: string;
+  /** nazwa pliku z rozszerzeniem; null dla importu bez podanej nazwy */
+  file_name: string | null;
+  imported_at: string; // data i godzina importu (ISO)
+  created: number;
+  skipped: number;
+  total: number;
+  /** wpisy z tego importu, które są jeszcze w rejestrze */
+  remaining: number;
+  undone_at: string | null;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;
