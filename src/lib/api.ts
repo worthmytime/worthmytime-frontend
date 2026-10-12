@@ -93,7 +93,7 @@ export interface MonthReport {
   change: number;
   change_percent: number | null;
   /** future: wpisy w kategorii Przyszłość; unspent: dochód minus wszystkie wydatki (nie mniej niż 0) */
-  saved: { future: number; unspent: number };
+  saved: { future: number; unspent: number; /** wpłaty na cele minus wypłaty w tym miesiącu */ goals?: number };
   /** wydatki uznaniowe (Cele i Przyjemności) i czas pracy, który na nie poszedł */
   discretionary: { spent: number; work_hours: number | null };
   largest_expense: { id: string; category: Category; amount: number; note: string | null; spent_on: string } | null;

@@ -71,7 +71,8 @@ test("podsumowanie miesiąca (konto): liczby, kategorie, wybór miesiąca i eksp
     return json(r, REPORTS[month]);
   });
   await page.route("**/api/v1/export**", (r) => {
-    exported.push(new URL(r.request().url()).searchParams.get("format") ?? "");
+    const params = new URL(r.request().url()).searchParams;
+    exported.push([params.get("format"), params.get("from"), params.get("to")].filter(Boolean).join(" "));
     return r.fulfill({ status: 200, contentType: "text/csv; charset=utf-8", body: "type,id\r\nexpense,e1\r\n" });
   });
   await signedIn(page);
@@ -103,6 +104,33 @@ test("podsumowanie miesiąca (konto): liczby, kategorie, wybór miesiąca i eksp
   await page.getByRole("button", { name: "Pobierz CSV" }).click();
   expect((await download).suggestedFilename()).toBe("worthmytime-2026-10-10.csv");
   expect(exported).toEqual(["csv"]);
+
+  // zakres: wybrany miesiąc (na stronie jest wrzesień), rok, bieżący tydzień i własny przedział
+  const pick = async (range: string, button: string) => {
+    await page.getByRole("radio", { name: range }).click();
+    const started = page.waitForEvent("download");
+    await page.getByRole("button", { name: button }).click();
+    return (await started).suggestedFilename();
+  };
+  expect(await pick("Wybrany miesiąc", "Pobierz JSON")).toBe("worthmytime-2026-09-01_2026-09-30.json");
+  await expect(page.getByTestId("export-range")).toHaveText("Zakres: 2026-09-01 - 2026-09-30");
+  expect(await pick("Rok", "Pobierz CSV")).toBe("worthmytime-2026-01-01_2026-12-31.csv");
+  expect(await pick("Ten tydzień", "Pobierz CSV")).toBe("worthmytime-2026-10-05_2026-10-11.csv"); // 10.10.2026 to sobota
+
+  await page.getByRole("radio", { name: "Własny zakres" }).click();
+  await page.getByLabel("Od").fill("2026-03-01");
+  await page.getByLabel("Do").fill("2026-02-01");
+  await expect(page.getByTestId("export-range")).toContainText("nie może być późniejszy");
+  await page.getByLabel("Do").fill("2026-03-15");
+  const started = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Pobierz CSV" }).click();
+  expect((await started).suggestedFilename()).toBe("worthmytime-2026-03-01_2026-03-15.csv");
+  expect(exported.slice(1)).toEqual([
+    "json 2026-09-01 2026-09-30",
+    "csv 2026-01-01 2026-12-31",
+    "csv 2026-10-05 2026-10-11",
+    "csv 2026-03-01 2026-03-15",
+  ]);
 });
 
 test("podsumowanie miesiąca (bez konta): zachęta do logowania", async ({ page }) => {
