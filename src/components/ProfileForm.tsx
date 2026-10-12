@@ -6,19 +6,11 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { money, num } from "@/lib/format";
-import {
-  applyServerErrors,
-  errorMessage,
-  profileFromForm,
-  profileSchema,
-  profileToForm,
-  type ProfileFormIn,
-  type ProfileFormOut,
-} from "@/lib/forms";
+import { applyServerErrors, errorMessage, profileFromForm, profileSchema, profileToForm, type ProfileFormIn, type ProfileFormOut, parseNumber } from "@/lib/forms";
 import { useApp } from "./AppProvider";
 import { Field } from "./FormField";
 
-const toNumber = (s: string) => (s.trim() === "" ? null : Number(s.replace(",", ".")));
+const toNumber = (s: string) => (s.trim() === "" ? null : parseNumber(s));
 
 export default function ProfileForm({ onSaved, submitLabel = "Zapisz profil" }: { onSaved?: () => void; submitLabel?: string }) {
   const { profile, saveProfile } = useApp();

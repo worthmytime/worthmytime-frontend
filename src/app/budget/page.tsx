@@ -17,24 +17,15 @@ import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { countsThisMonth, dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
-import {
-  applyServerErrors,
-  BUDGET_CATEGORIES,
-  budgetFromForm,
-  budgetSchema,
-  budgetToForm,
-  errorMessage,
-  type BudgetFormIn,
-  type BudgetFormOut,
-} from "@/lib/forms";
+import { applyServerErrors, BUDGET_CATEGORIES, budgetFromForm, budgetSchema, budgetToForm, errorMessage, type BudgetFormIn, type BudgetFormOut, parseNumber } from "@/lib/forms";
 
 const toIntOrNull = (s: string | undefined) => {
   if (!s || s.trim() === "") return null;
-  const n = Math.floor(Number(s.replace(",", ".")));
+  const n = Math.floor(parseNumber(s));
   return Number.isFinite(n) ? n : null;
 };
 
-const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? Number(s.replace(",", ".")) : 0) || 0;
+const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? parseNumber(s) : 0) || 0;
 
 export default function BudgetPage() {
   const { ready, profile, monthlyIncome, budget, saveBudget, loggedIn } = useApp();

@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
 import type { useRecurring } from "@/lib/use-recurring";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ const schema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę").max(100),
   amount: z
     .string()
-    .transform((s) => Number(s.replace(",", ".")))
+    .transform((s) => parseNumber(s))
     .refine((n) => Number.isFinite(n) && n > 0, "Podaj kwotę większą od zera"),
   day_of_month: z
     .string()
