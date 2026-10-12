@@ -56,6 +56,41 @@ export function nextInstallment(loan: LoanDates, today = new Date()): { date: Da
   return { date, inDays: Math.round((date.getTime() - startOfDay(today).getTime()) / 86_400_000) };
 }
 
+export interface Installment {
+  date: Date;
+  /** dni do terminu: 0 = dziś, ujemne = termin już minął */
+  inDays: number;
+}
+
+/**
+ * Raty kredytu do pokazania na stronie Wydatki: rata z bieżącego miesiąca przez cały miesiąc (także po terminie)
+ * oraz kolejna, gdy termin bieżącej już minął, a następny wypada w ciągu `horizon` dni.
+ */
+export function installmentsToShow(loan: LoanDates, today = new Date(), horizon = 31): Installment[] {
+  const t = startOfDay(today);
+  const day = loan.payment_day ?? (loan.end_date ? parseIso(loan.end_date).getDate() : t.getDate());
+  const thisMonth = monthDate(t.getFullYear(), t.getMonth(), day);
+  const passed = thisMonth < t;
+  const start = loan.start_date ? parseIso(loan.start_date) : null;
+  const end = loan.end_date ? parseIso(loan.end_date) : null;
+  const inDays = (date: Date) => Math.round((date.getTime() - t.getTime()) / 86_400_000);
+  // rata mieści się w okresie spłaty; bez daty końca decyduje liczba rat pozostałych do spłacenia
+  const inPeriod = (date: Date) => (!start || date >= start) && (!end || date <= end);
+  const left = remainingInstallments(loan, today);
+
+  const out: Installment[] = [];
+  if (inPeriod(thisMonth) && (end ? true : (loan.installments_left ?? 0) >= 1)) out.push({ date: thisMonth, inDays: inDays(thisMonth) });
+  if (passed) {
+    const next = addMonths(thisMonth, 1, day);
+    if (inPeriod(next) && left >= 1 && inDays(next) <= horizon) out.push({ date: next, inDays: inDays(next) });
+  }
+  return out;
+}
+
+/** Termin słownie: "dziś", "za 4 dni", "9 dni po terminie". */
+export const dueText = (inDays: number) =>
+  inDays === 0 ? "dziś" : inDays > 0 ? `za ${inDays} ${inDays === 1 ? "dzień" : "dni"}` : `${-inDays} ${inDays === -1 ? "dzień" : "dni"} po terminie`;
+
 /** Jaka część okresu spłaty (od - do) już minęła, w procentach. */
 export function repaymentProgress(loan: LoanDates, today = new Date()): number | null {
   if (!loan.start_date || !loan.end_date) return null;

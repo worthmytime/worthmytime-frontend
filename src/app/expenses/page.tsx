@@ -26,7 +26,7 @@ import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
 import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
-import { dateLabel, isoDate, nextInstallment } from "@/lib/loans";
+import { dateLabel, dueText, installmentsToShow, isoDate } from "@/lib/loans";
 import { plannedFor } from "@/lib/recurring";
 import { loanKey, useLedger } from "@/lib/use-ledger";
 import { useRecurring } from "@/lib/use-recurring";
@@ -94,11 +94,10 @@ export default function ExpensesPage() {
   const currency = profile.currency;
   const loansTotal = (budget?.loans ?? []).reduce((s, l) => s + l.installment_amount, 0);
   const percentages = budget?.percentages ?? { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 };
-  // najbliższe raty kredytów (w ciągu 31 dni), od najwcześniejszej
+  // raty kredytów: z bieżącego miesiąca (także po terminie) i najbliższa kolejna, od najwcześniejszej
   const upcoming = (budget?.loans ?? [])
-    .map((l) => ({ loan: l, next: nextInstallment(l) }))
-    .filter((x): x is { loan: (typeof x)["loan"]; next: NonNullable<(typeof x)["next"]> } => x.next != null && x.next.inDays <= 31)
-    .sort((a, b) => a.next.date.getTime() - b.next.date.getTime())
+    .flatMap((l) => installmentsToShow(l).map((next) => ({ loan: l, next })))
+    .sort((a, b) => a.next.date.getTime() - b.next.date.getTime());
 
   // budżet, wydane (ręcznie + rejestr + raty w Potrzebach) per kategoria
   const rows = BUDGET_CATEGORIES.map((c) => {
@@ -112,8 +111,12 @@ export default function ExpensesPage() {
   const isPaid = (loan: { id?: string; name: string; installment_amount: number }, due: Date) =>
     ledger.allItems.some((e) => e.source_type === "LOAN" && e.source_id === loanKey(loan) && e.spent_on.slice(0, 7) === isoDate(due).slice(0, 7));
 
-  // nieopłacone raty pokazujemy też w drzewie, pod Potrzebami (opłacone są już na liście jako wpisy "rata")
-  const dueLoans = upcoming.filter(({ loan, next }) => !isPaid(loan, next.date));
+  // w drzewie, pod Potrzebami: raty nieopłacone (także po terminie) oraz opłacone z góry z kolejnego miesiąca;
+  // opłacona rata z bieżącego miesiąca jest już na liście jako wpis "rata"
+  const dueLoans = upcoming
+    .map((x) => ({ ...x, paid: isPaid(x.loan, x.next.date) }))
+    .filter((x) => !x.paid || isoDate(x.next.date).slice(0, 7) !== ledger.period);
+  const unpaidLoans = dueLoans.filter((x) => !x.paid);
 
   const selected = rows.find((r) => r.c === category);
 
@@ -254,7 +257,7 @@ export default function ExpensesPage() {
             <Card size="sm" data-testid="upcoming-installments">
               <CardHeader>
                 <CardTitle className="text-base">Zbliżające się raty</CardTitle>
-                <CardDescription>Raty kredytów i pożyczek w najbliższych tygodniach (liczą się do Potrzeb)</CardDescription>
+                <CardDescription>Raty z tego miesiąca (także po terminie) i najbliższe kolejne; liczą się do Potrzeb</CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="divide-y text-sm">
@@ -262,8 +265,8 @@ export default function ExpensesPage() {
                     <li key={`${loan.name}-${i}`} className="flex items-center justify-between gap-3 py-2">
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{loan.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                        <span className={cn("text-xs text-muted-foreground", next.inDays < 0 && !isPaid(loan, next.date) && "text-destructive")}>
+                          {dateLabel(next.date)} · {dueText(next.inDays)}
                         </span>
                       </span>
                       <span className="shrink-0 tabular-nums font-semibold">{money(loan.installment_amount, currency)}</span>
@@ -276,7 +279,7 @@ export default function ExpensesPage() {
                           variant="outline"
                           size="sm"
                           className="shrink-0"
-                          aria-label={`Oznacz ratę ${loan.name} jako zapłaconą`}
+                          aria-label={`Oznacz ratę ${loan.name} jako zapłaconą, termin ${dateLabel(next.date)}`}
                           onClick={() => ledger.payLoan(loan, isoDate(next.date)).then(() => toast.success("Rata oznaczona jako zapłacona")).catch((err) => toast.error(errorMessage(err)))}
                         >
                           Zapłacona
@@ -308,6 +311,7 @@ export default function ExpensesPage() {
                 {rows.map((r) => {
                   const entries = ledger.items.filter((e) => e.category === r.c);
                   const loanRows = r.c === "NEEDS" ? dueLoans : [];
+                  const unpaidHere = r.c === "NEEDS" ? unpaidLoans : [];
                   const planned = plannedFor(recurring.items, ledger.items, r.c); // stałe wydatki czekające na termin w tym miesiącu
                   const isOpen = !!open[r.c];
                   return (
@@ -324,7 +328,7 @@ export default function ExpensesPage() {
                           {CATEGORY_INFO[r.c].label}
                           <span className="text-xs font-normal text-muted-foreground">
                             ({entriesLabel(entries.length)}
-                            {loanRows.length > 0 && `, ${installmentsLabel(loanRows.length)} do zapłaty`}
+                            {unpaidHere.length > 0 && `, ${installmentsLabel(unpaidHere.length)} do zapłaty`}
                             {planned.length > 0 && `, ${plannedLabel(planned.length)}`})
                           </span>
                         </span>
@@ -350,34 +354,46 @@ export default function ExpensesPage() {
                       {isOpen && (
                         <div id={`entries-${r.c}`} className="mt-1 ml-2 min-w-0 border-l pl-3">
                           {loanRows.length > 0 && (
-                            <ul className="divide-y border-b" data-testid={`loan-rows-${r.c}`} aria-label="Raty do zapłaty">
-                              {loanRows.map(({ loan, next }, i) => (
+                            <ul className="divide-y border-b" data-testid={`loan-rows-${r.c}`} aria-label="Raty kredytów i pożyczek">
+                              {loanRows.map(({ loan, next, paid }, i) => (
                                 <li key={`${loan.name}-${i}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5">
                                   <div className="min-w-0 flex-1 basis-44">
                                     <p className="truncate text-sm font-medium">
                                       {loan.name}
-                                      <span className="ml-2 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" data-testid="loan-row-status">
-                                        rata do zapłaty
+                                      <span
+                                        className={cn(
+                                          "ml-2 rounded-md px-1.5 py-0.5 text-[11px] font-medium",
+                                          paid
+                                            ? "bg-primary/10 text-primary"
+                                            : next.inDays < 0
+                                              ? "bg-destructive/10 text-destructive"
+                                              : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                                        )}
+                                        data-testid="loan-row-status"
+                                      >
+                                        {paid ? "opłacona z góry" : next.inDays < 0 ? "rata po terminie" : "rata do zapłaty"}
                                       </span>
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      {dateLabel(next.date)} · {next.inDays === 0 ? "dziś" : `za ${next.inDays} ${next.inDays === 1 ? "dzień" : "dni"}`}
+                                      {dateLabel(next.date)} · {dueText(next.inDays)}
                                     </p>
                                   </div>
                                   <span className="tabular-nums text-sm font-semibold">{money(loan.installment_amount, currency)}</span>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    aria-label={`Zapłacona: rata ${loan.name}`}
-                                    onClick={() =>
-                                      ledger
-                                        .payLoan(loan, isoDate(next.date))
-                                        .then(() => toast.success("Rata oznaczona jako zapłacona"))
-                                        .catch((err) => toast.error(errorMessage(err)))
-                                    }
-                                  >
-                                    Zapłacona
-                                  </Button>
+                                  {!paid && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      aria-label={`Zapłacona: rata ${loan.name}, termin ${dateLabel(next.date)}`}
+                                      onClick={() =>
+                                        ledger
+                                          .payLoan(loan, isoDate(next.date))
+                                          .then(() => toast.success("Rata oznaczona jako zapłacona"))
+                                          .catch((err) => toast.error(errorMessage(err)))
+                                      }
+                                    >
+                                      Zapłacona
+                                    </Button>
+                                  )}
                                 </li>
                               ))}
                             </ul>
