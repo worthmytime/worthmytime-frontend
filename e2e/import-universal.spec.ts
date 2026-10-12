@@ -14,11 +14,11 @@ test("import z dowolnego banku: Jev dopasowuje kolumny i proponuje kategorie, wy
   await withLocalProfile(page);
   let columns: { index: number; header: string; samples: string[] }[] = [];
   let merchants: { key: string; description: string }[] = [];
-  await page.route("**/api/map-columns", (r) => {
+  await page.route("**/api/v1/ai/map-columns", (r) => {
     columns = r.request().postDataJSON().columns;
     return json(r, { mapping: { date: 0, amount: 3, description: 1, currency: 4 } });
   });
-  await page.route("**/api/categorize", (r) => {
+  await page.route("**/api/v1/ai/categorize", (r) => {
     merchants = r.request().postDataJSON().items;
     return json(r, { suggestions: { ORLEN: "NEEDS", "LIDL WARSZAWA": "NEEDS", "NETFLIX.COM": "FUN" } });
   });
@@ -66,8 +66,8 @@ test("import z dowolnego banku: Jev dopasowuje kolumny i proponuje kategorie, wy
 test("import z dowolnego banku bez Jev: kolumny dopasowane po nagłówkach, ręczna poprawka przelicza wydatki", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
   await withLocalProfile(page);
-  await page.route("**/api/map-columns", (r) => json(r, { error: "brak klucza" }, 500));
-  await page.route("**/api/categorize", (r) => json(r, { error: "brak klucza" }, 500));
+  await page.route("**/api/v1/ai/map-columns", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
+  await page.route("**/api/v1/ai/categorize", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
   await page.goto("/expenses");
 
   await page.getByTestId("import-file").setInputFiles(fixture("bank.csv"));
@@ -90,8 +90,8 @@ test("import z dowolnego banku bez Jev: kolumny dopasowane po nagłówkach, ręc
 test("import arkusza XLSX: daty z arkusza, kolumna obciążeń bez znaku minus", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
   await withLocalProfile(page);
-  await page.route("**/api/map-columns", (r) => json(r, { error: "brak klucza" }, 500));
-  await page.route("**/api/categorize", (r) => json(r, { error: "brak klucza" }, 500));
+  await page.route("**/api/v1/ai/map-columns", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
+  await page.route("**/api/v1/ai/categorize", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
   await page.goto("/expenses");
 
   await page.getByTestId("import-file").setInputFiles(fixture("bank.xlsx"));
@@ -115,8 +115,8 @@ test("import arkusza XLSX: daty z arkusza, kolumna obciążeń bez znaku minus",
 test("import pliku TXT z tabulatorami i kwotami z walutą", async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-10T10:00:00"));
   await withLocalProfile(page);
-  await page.route("**/api/map-columns", (r) => json(r, { error: "brak klucza" }, 500));
-  await page.route("**/api/categorize", (r) => json(r, { error: "brak klucza" }, 500));
+  await page.route("**/api/v1/ai/map-columns", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
+  await page.route("**/api/v1/ai/categorize", (r) => json(r, { error: "Podpowiedzi Jev nie są skonfigurowane na serwerze" }, 503));
   await page.goto("/expenses");
 
   await page.getByTestId("import-file").setInputFiles(fixture("bank.txt"));

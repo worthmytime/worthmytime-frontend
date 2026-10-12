@@ -2,7 +2,7 @@ import { clean, merchantKeyOf, parseCsv, type ImportTx, type ParsedStatement } f
 
 /**
  * Import uniwersalny: dowolna tabela z historią transakcji (CSV, TXT, XLSX) sprowadzana do stałej struktury wydatku.
- * Które kolumny są datą, kwotą i opisem, rozpoznaje Jev (`/api/map-columns`); tutaj jest odczyt tabeli, dopasowanie
+ * Które kolumny są datą, kwotą i opisem, rozpoznaje Jev (przez backend: `POST /ai/map-columns`); tutaj jest odczyt tabeli, dopasowanie
  * awaryjne po nagłówkach i zawartości oraz zamiana wierszy na wydatki.
  */
 
