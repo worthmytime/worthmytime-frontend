@@ -63,3 +63,12 @@ test("pasek nawigacji bez profilu nie pokazuje kwoty", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("nav-balance")).toHaveCount(0);
 });
+
+test("pasek nawigacji z kwotą mieści się na ekranie telefonu (strona nie przewija się w bok)", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/expenses");
+  await expect(page.getByTestId("nav-balance")).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.getByTestId("alerts-bell")).toBeInViewport();
+});

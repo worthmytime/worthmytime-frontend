@@ -74,7 +74,8 @@ export default function Nav() {
             <span className="grid size-9 place-items-center rounded-xl bg-brand text-lime">
               <HourglassIcon className="size-[18px]" />
             </span>
-            <span aria-hidden>
+            {/* na telefonie zostaje sam znak: obok muszą się zmieścić kwota, profil, alerty i motyw */}
+            <span aria-hidden className="hidden sm:inline">
               Worth<span className="text-primary">My</span>Time
             </span>
           </Link>
@@ -121,14 +122,14 @@ export default function Nav() {
             </DropdownMenu>
           </nav>
 
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex min-w-0 items-center gap-1">
             {balance != null && (
               <Link
                 href="/expenses"
                 title="Zostało w tym miesiącu: dochód minus wydatki i raty"
                 aria-label={`Zostało w tym miesiącu: ${money(balance, profile?.currency)}`}
                 className={cn(
-                  "mr-1 inline-flex h-9 items-center rounded-full border bg-card px-3 text-sm font-semibold whitespace-nowrap tabular-nums hover:border-foreground",
+                  "mr-0.5 inline-flex h-9 min-w-0 items-center rounded-full border bg-card px-2.5 text-[13px] font-semibold whitespace-nowrap tabular-nums hover:border-foreground sm:mr-1 sm:px-3 sm:text-sm",
                   balance < 0 && "border-destructive/40 text-destructive",
                 )}
                 data-testid="nav-balance"
@@ -153,7 +154,7 @@ export default function Nav() {
             ) : (
               <Link
                 href="/profile"
-                className="inline-flex h-10 items-center rounded-full border border-input bg-card px-4 text-sm font-semibold hover:border-foreground"
+                className="inline-flex h-10 items-center rounded-full border border-input bg-card px-3 text-sm font-semibold whitespace-nowrap hover:border-foreground sm:px-4"
               >
                 Zaloguj się
               </Link>
