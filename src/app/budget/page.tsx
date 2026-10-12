@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
@@ -102,6 +103,26 @@ function BudgetForm({
   const sum = BUDGET_CATEGORIES.reduce((s, c) => s + pct(c), 0);
   const totalSpent = BUDGET_CATEGORIES.reduce((s, c) => s + spent(c), 0) + monthlyLoans;
   const sumOk = Math.abs(sum - 100) < 0.01;
+
+  // niezapisane zmiany: bieżąca zawartość formularza różni się od zapisanego planu
+  const savedForm = useMemo(() => JSON.stringify(budgetToForm(budget)), [budget]);
+  const dirty = JSON.stringify(w) !== savedForm;
+
+  // przejście na inną stronę (menu, linki) z niezapisanymi zmianami wymaga potwierdzenia
+  useEffect(() => {
+    if (!dirty) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || link.target === "_blank" || link.origin !== window.location.origin || link.pathname === window.location.pathname) return;
+      if (!window.confirm("Masz niezapisane zmiany w budżecie. Wyjść bez zapisywania?")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty]);
 
   async function submit(values: BudgetFormOut) {
     try {
@@ -323,7 +344,20 @@ function BudgetForm({
           </CardContent>
         </Card>
 
-        <div className="flex flex-wrap gap-2">
+        {/* pasek zapisu zawsze widoczny u dołu ekranu (nad dolną nawigacją na telefonie), żeby nie trzeba było przewijać całej strony */}
+        <div
+          className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-background/95 p-2 shadow-sm backdrop-blur lg:bottom-4"
+          data-testid="budget-save-bar"
+        >
+          <p className="min-w-0 flex-1 basis-40 px-1 text-sm" aria-live="polite" data-testid="budget-status">
+            {!sumOk ? (
+              <span className="font-medium text-destructive">Suma procentów: {num(sum, 2)}%, powinno być 100%.</span>
+            ) : dirty ? (
+              <span className="font-medium">Masz niezapisane zmiany.</span>
+            ) : (
+              <span className="text-muted-foreground">Wszystkie zmiany zapisane.</span>
+            )}
+          </p>
           <Button type="submit" size="lg" className="h-11 px-6 text-base" disabled={isSubmitting}>
             {isSubmitting ? "Zapisuję…" : "Zapisz budżet"}
           </Button>

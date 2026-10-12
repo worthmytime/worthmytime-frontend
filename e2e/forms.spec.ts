@@ -70,3 +70,35 @@ test("kwoty w polskim zapisie: wydatek ze spacją i przecinkiem, raty w Budżeci
   await expect(loan.getByLabel("Wysokość raty")).toHaveValue("540,18");
   await expect(loan.getByLabel("Kwota kredytu")).toHaveValue("6482,16");
 });
+
+test("budżet: pasek zapisu pokazuje stan i sumę, a wyjście z niezapisanymi zmianami wymaga potwierdzenia", async ({ page, isMobile }) => {
+  await withLocalProfile(page);
+  await page.goto("/budget");
+  const status = page.getByTestId("budget-status");
+  await expect(status).toHaveText("Wszystkie zmiany zapisane.");
+  await expect(page.getByTestId("budget-save-bar")).toBeInViewport(); // widoczny bez przewijania na dół strony
+
+  await page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)").fill("20");
+  await expect(status).toHaveText("Suma procentów: 110%, powinno być 100%.");
+  await page.getByTestId("budget-NEEDS").getByLabel("Udział w dochodzie (%)").fill("40");
+  await expect(status).toHaveText("Masz niezapisane zmiany.");
+
+  // przejście na inną stronę: odmowa zostawia nas w Budżecie z wpisanymi wartościami
+  const nav = page.getByRole("navigation", { name: isMobile ? "Nawigacja mobilna" : "Główna nawigacja" });
+  const messages: string[] = [];
+  page.once("dialog", (d) => {
+    messages.push(d.message());
+    void d.dismiss();
+  });
+  await nav.getByRole("link", { name: "Wydatki" }).click();
+  await expect(page).toHaveURL(/\/budget$/);
+  expect(messages).toEqual(["Masz niezapisane zmiany w budżecie. Wyjść bez zapisywania?"]);
+  await expect(page.getByTestId("budget-FUN").getByLabel("Udział w dochodzie (%)")).toHaveValue("20");
+
+  // po zapisie nie ma o co pytać
+  await page.getByRole("button", { name: "Zapisz budżet" }).click();
+  await expect(page.getByText("Budżet zapisany")).toBeVisible();
+  await expect(status).toHaveText("Wszystkie zmiany zapisane.");
+  await nav.getByRole("link", { name: "Wydatki" }).click();
+  await expect(page).toHaveURL(/\/expenses$/);
+});
