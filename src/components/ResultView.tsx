@@ -84,7 +84,12 @@ export default function ResultView({ result, currency = "PLN" }: { result: Resul
               W skali lat
             </h3>
             <p className="font-heading text-[26px] font-bold tabular-nums" data-testid="years">
-              {w.working_years < 1 ? num(w.working_years, 2) : yearsLabel(Math.round(w.working_years * 100) / 100)}
+              {/* poniżej roku ułamek ("0,01 roku") nic nie mówi, więc pokazujemy udział w roku pracy w procentach */}
+              {w.working_years >= 1
+                ? yearsLabel(Math.round(w.working_years * 100) / 100)
+                : w.working_years < 0.01
+                  ? "poniżej 1%"
+                  : `${num(w.working_years * 100, 0)}%`}
               <span className="font-sans text-sm font-medium text-white/85">{w.working_years < 1 ? " roku pracy" : " pracy"}</span>
             </p>
             <ProgressBar value={w.working_years * 100} label="Udział w roku pracy" />

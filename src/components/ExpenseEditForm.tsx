@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Category, Expense } from "@/lib/api";
 import { CATEGORY_INFO } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber, numeric } from "@/lib/forms";
 import type { NewExpense } from "@/lib/use-ledger";
 
 const schema = z.object({
@@ -78,7 +78,7 @@ export default function ExpenseEditForm({
           )}
         </Field>
         <Field label="Kwota wpisu" error={errors.amount?.message}>
-          {(p) => <Input {...p} inputMode="decimal" className="h-10" {...register("amount")} />}
+          {(p) => <Input {...p} inputMode="decimal" className="h-10" {...numeric(register("amount"))} />}
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

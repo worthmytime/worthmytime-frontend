@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { money, num } from "@/lib/format";
-import { applyServerErrors, DEFAULT_BUDGET, errorMessage, loansFromForm, loansSchema, loansToForm, parseNumber, type LoansFormIn, type LoansFormOut } from "@/lib/forms";
+import { applyServerErrors, DEFAULT_BUDGET, errorMessage, loansFromForm, loansSchema, loansToForm, parseNumber, type LoansFormIn, type LoansFormOut, numeric } from "@/lib/forms";
 import { countsThisMonth, dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
 import { useApp } from "./AppProvider";
 
@@ -115,13 +115,13 @@ function LoansForm({ currency, income, hourlyRate, onSaved }: Props) {
                 </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   <Field label="Wysokość raty" error={errors.loans?.[i]?.installment_amount?.message}>
-                    {(p) => <Input {...p} inputMode="decimal" placeholder="800" className="h-11" {...register(`loans.${i}.installment_amount`)} />}
+                    {(p) => <Input {...p} inputMode="decimal" placeholder="np. 800" className="h-11" {...numeric(register(`loans.${i}.installment_amount`))} />}
                   </Field>
                   <Field label="Dzień raty w miesiącu" hint="1-31, np. 15" error={errors.loans?.[i]?.payment_day?.message}>
-                    {(p) => <Input {...p} inputMode="numeric" placeholder="15" className="h-11" {...register(`loans.${i}.payment_day`)} />}
+                    {(p) => <Input {...p} inputMode="numeric" placeholder="np. 15" className="h-11" {...numeric(register(`loans.${i}.payment_day`))} />}
                   </Field>
                   <Field label="Suma kredytu" hint="Opcjonalnie, pierwotna kwota" error={errors.loans?.[i]?.loan_amount?.message} className="col-span-2 sm:col-span-1">
-                    {(p) => <Input {...p} inputMode="decimal" placeholder="40000" className="h-11" {...register(`loans.${i}.loan_amount`)} />}
+                    {(p) => <Input {...p} inputMode="decimal" placeholder="np. 40000" className="h-11" {...numeric(register(`loans.${i}.loan_amount`))} />}
                   </Field>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -141,9 +141,9 @@ function LoansForm({ currency, income, hourlyRate, onSaved }: Props) {
                     <Input
                       {...p}
                       inputMode="numeric"
-                      placeholder={l.loan.end_date ? `wyliczone: ${l.left}` : "36"}
+                      placeholder={l.loan.end_date ? `wyliczone: ${l.left}` : "np. 36"}
                       className="h-11"
-                      {...register(`loans.${i}.installments_left`)}
+                      {...numeric(register(`loans.${i}.installments_left`))}
                     />
                   )}
                 </Field>

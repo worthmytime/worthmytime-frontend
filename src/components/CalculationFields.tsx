@@ -12,7 +12,7 @@ import { suggestCategory } from "@/lib/ai";
 import { CATEGORY_INFO, FREQ_LABEL } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { money } from "@/lib/format";
-import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut, parseNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut, parseNumber, numeric } from "@/lib/forms";
 import type { CalcType } from "@/lib/api";
 import { useApp } from "./AppProvider";
 import { Field } from "./FormField";
@@ -99,7 +99,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
         <div className="grid items-start gap-4 sm:grid-cols-2">
           <Field label="Cena" error={errors.purchase_price?.message}>
             {(p) => (
-              <Input {...p} inputMode="decimal" placeholder="5299" className="h-11" {...register("purchase_price")} />
+              <Input {...p} inputMode="decimal" placeholder="np. 5299" className="h-11" {...numeric(register("purchase_price"))} />
             )}
           </Field>
           <Field
@@ -108,13 +108,13 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
             error={errors.ownership_years?.message}
           >
             {(p) => (
-              <Input {...p} inputMode="decimal" placeholder="3" className="h-11" {...register("ownership_years")} />
+              <Input {...p} inputMode="decimal" placeholder="np. 3" className="h-11" {...numeric(register("ownership_years"))} />
             )}
           </Field>
           {type === "TCO" && (
             <Field label="Wartość odsprzedaży" hint="Po okresie użytkowania" error={errors.resale_value?.message}>
               {(p) => (
-                <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register("resale_value")} />
+                <Input {...p} inputMode="decimal" placeholder="np. 0" className="h-11" {...numeric(register("resale_value"))} />
               )}
             </Field>
           )}
@@ -123,7 +123,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
 
       {type !== "RECURRING" && (
         <Field label="Ile razy tego użyjesz? (opcjonalnie)" hint="Policzymy koszt jednego użycia" error={errors.expected_uses?.message}>
-          {(p) => <Input {...p} inputMode="numeric" placeholder="np. 300" className="h-11" {...register("expected_uses")} />}
+          {(p) => <Input {...p} inputMode="numeric" placeholder="np. 300" className="h-11" {...numeric(register("expected_uses"))} />}
         </Field>
       )}
 
@@ -142,7 +142,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
             {suggesting ? "Analizuję..." : "Zaproponuj AI"}
           </Button>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Kategoria budżetu">
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Kategoria budżetu">
           {([""].concat(BUDGET_CATEGORIES) as ("" | (typeof BUDGET_CATEGORIES)[number])[]).map((c) => {
             const active = category === c;
             return (
@@ -152,7 +152,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
                 role="radio"
                 aria-checked={active}
                 onClick={() => setValue("category", c, { shouldDirty: true })}
-                className={`min-h-11 rounded-lg border px-2 text-sm font-medium transition-colors ${
+                className={`min-h-11 rounded-lg border px-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   active ? "border-primary bg-primary/10 text-foreground" : "text-muted-foreground hover:bg-muted"
                 }`}
               >
@@ -187,14 +187,14 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
       {category && type !== "RECURRING" && (
         <div className="grid items-start gap-4 sm:grid-cols-2">
           <Field label="Już odłożone" hint="Na ten zakup" error={errors.already_saved?.message}>
-            {(p) => <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register("already_saved")} />}
+            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 0" className="h-11" {...numeric(register("already_saved"))} />}
           </Field>
           <Field
             label="Miesięczna wpłata"
             hint={free != null ? `Zostaw puste, a przyjmiemy maksimum: ${money(free, currency)}` : "Zostaw puste, a przyjmiemy maksimum z kategorii"}
             error={errors.monthly_contribution?.message ?? (overMax ? `Więcej niż dostępne w kategorii (${money(free ?? 0, currency)})` : undefined)}
           >
-            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 1000" className="h-11" {...register("monthly_contribution")} />}
+            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 1000" className="h-11" {...numeric(register("monthly_contribution"))} />}
           </Field>
         </div>
       )}
@@ -222,7 +222,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Kwota" error={errors.costs?.[i]?.amount?.message}>
-                    {(p) => <Input {...p} inputMode="decimal" placeholder="700" className="h-11" {...register(`costs.${i}.amount`)} />}
+                    {(p) => <Input {...p} inputMode="decimal" placeholder="np. 700" className="h-11" {...numeric(register(`costs.${i}.amount`))} />}
                   </Field>
                   <Field label="Jak często" error={errors.costs?.[i]?.frequency?.message}>
                     {(p) => (

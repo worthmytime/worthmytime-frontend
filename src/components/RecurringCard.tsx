@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber, numeric } from "@/lib/forms";
 import type { useRecurring } from "@/lib/use-recurring";
 import { cn } from "@/lib/utils";
 
@@ -127,10 +127,10 @@ export default function RecurringCard({ recurring, currency }: { recurring: Retu
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Opłata miesięczna" error={errors.amount?.message}>
-              {(p) => <Input {...p} inputMode="decimal" placeholder="2000" className="h-11" {...register("amount")} />}
+              {(p) => <Input {...p} inputMode="decimal" placeholder="np. 2000" className="h-11" {...numeric(register("amount"))} />}
             </Field>
             <Field label="Dzień miesiąca" error={errors.day_of_month?.message}>
-              {(p) => <Input {...p} inputMode="numeric" className="h-11" {...register("day_of_month")} />}
+              {(p) => <Input {...p} inputMode="numeric" className="h-11" {...numeric(register("day_of_month"))} />}
             </Field>
           </div>
           <Button type="submit" size="lg" className="h-11 text-base" disabled={isSubmitting}>

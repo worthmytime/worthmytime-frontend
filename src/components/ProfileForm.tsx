@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { money, num } from "@/lib/format";
-import { applyServerErrors, errorMessage, profileFromForm, profileSchema, profileToForm, type ProfileFormIn, type ProfileFormOut, parseNumber } from "@/lib/forms";
+import { applyServerErrors, errorMessage, profileFromForm, profileSchema, profileToForm, type ProfileFormIn, type ProfileFormOut, parseNumber, numeric } from "@/lib/forms";
 import { useApp } from "./AppProvider";
 import { Field } from "./FormField";
 
@@ -56,7 +56,7 @@ export default function ProfileForm({ onSaved, submitLabel = "Zapisz profil" }: 
     <form onSubmit={handleSubmit(submit)} noValidate className="grid gap-4">
       <div className="grid gap-4 sm:grid-cols-[1fr_7rem]">
         <Field label="Miesięczny dochód netto" error={errors.monthly_income?.message}>
-          {(p) => <Input {...p} inputMode="decimal" placeholder="7000" className="h-11" {...register("monthly_income")} />}
+          {(p) => <Input {...p} inputMode="decimal" placeholder="np. 7000" className="h-11" {...numeric(register("monthly_income"))} />}
         </Field>
         <Field label="Waluta" error={errors.currency?.message}>
           {(p) => <Input {...p} maxLength={3} className="h-11 uppercase" {...register("currency")} />}
@@ -65,10 +65,10 @@ export default function ProfileForm({ onSaved, submitLabel = "Zapisz profil" }: 
 
       <div className="grid grid-cols-2 gap-4">
         <Field label="Godzin pracy dziennie" error={errors.hours_per_day?.message}>
-          {(p) => <Input {...p} inputMode="decimal" className="h-11" {...register("hours_per_day")} />}
+          {(p) => <Input {...p} inputMode="decimal" className="h-11" {...numeric(register("hours_per_day"))} />}
         </Field>
         <Field label="Dni pracy w tygodniu" error={errors.days_per_week?.message}>
-          {(p) => <Input {...p} inputMode="decimal" className="h-11" {...register("days_per_week")} />}
+          {(p) => <Input {...p} inputMode="decimal" className="h-11" {...numeric(register("days_per_week"))} />}
         </Field>
       </div>
 
@@ -77,7 +77,7 @@ export default function ProfileForm({ onSaved, submitLabel = "Zapisz profil" }: 
         hint="Jeśli ją podasz, ma pierwszeństwo przed dochodem miesięcznym."
         error={errors.hourly_rate?.message}
       >
-        {(p) => <Input {...p} inputMode="decimal" placeholder="np. 42" className="h-11" {...register("hourly_rate")} />}
+        {(p) => <Input {...p} inputMode="decimal" placeholder="np. 42" className="h-11" {...numeric(register("hourly_rate"))} />}
       </Field>
 
       <fieldset className="grid gap-4 rounded-xl border bg-muted/30 p-3" data-testid="real-rate-section">
@@ -87,10 +87,10 @@ export default function ProfileForm({ onSaved, submitLabel = "Zapisz profil" }: 
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Dojazd dziennie (minuty, tam i z powrotem)" error={errors.commute_minutes_per_day?.message}>
-            {(p) => <Input {...p} inputMode="numeric" placeholder="np. 90" className="h-11" {...register("commute_minutes_per_day")} />}
+            {(p) => <Input {...p} inputMode="numeric" placeholder="np. 90" className="h-11" {...numeric(register("commute_minutes_per_day"))} />}
           </Field>
           <Field label="Koszty pracy miesięcznie" hint="Dojazd, lunche, ubrania" error={errors.work_costs_monthly?.message}>
-            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 600" className="h-11" {...register("work_costs_monthly")} />}
+            {(p) => <Input {...p} inputMode="decimal" placeholder="np. 600" className="h-11" {...numeric(register("work_costs_monthly"))} />}
           </Field>
         </div>
         {showReal && rate != null && (

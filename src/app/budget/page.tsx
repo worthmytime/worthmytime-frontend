@@ -17,18 +17,7 @@ import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { countsThisMonth } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
-import {
-  applyServerErrors,
-  BUDGET_CATEGORIES,
-  budgetFromForm,
-  budgetSchema,
-  budgetToForm,
-  errorMessage,
-  loansForSave,
-  parseNumber,
-  type BudgetFormIn,
-  type BudgetFormOut,
-} from "@/lib/forms";
+import { applyServerErrors, BUDGET_CATEGORIES, budgetFromForm, budgetSchema, budgetToForm, errorMessage, loansForSave, parseNumber, type BudgetFormIn, type BudgetFormOut, numeric } from "@/lib/forms";
 
 const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? parseNumber(s) : 0) || 0;
 
@@ -156,7 +145,7 @@ function BudgetForm({
               </CardHeader>
               <CardContent className="grid gap-4">
                 <Field label="Udział w dochodzie (%)" error={errors[`pct_${c}`]?.message}>
-                  {(p) => <Input {...p} inputMode="decimal" className="h-11 sm:max-w-40" {...register(`pct_${c}`)} />}
+                  {(p) => <Input {...p} inputMode="decimal" className="h-11 sm:max-w-40" {...numeric(register(`pct_${c}`))} />}
                 </Field>
                 <p className="text-sm text-muted-foreground">
                   Budżet: <b className="text-foreground tabular-nums">{money(amount, currency)}</b> · wydane (rejestr

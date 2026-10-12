@@ -24,7 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category, ExpenseTemplate } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber, numeric } from "@/lib/forms";
 import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
 import { countsThisMonth, dateLabel, dueText, installmentsToShow, isoDate } from "@/lib/loans";
@@ -228,7 +228,7 @@ export default function ExpensesPage() {
                 )}
                 <div className="grid gap-4 sm:grid-cols-[1fr_1fr]">
                   <Field label="Kwota" error={errors.amount?.message}>
-                    {(p) => <Input {...p} inputMode="decimal" placeholder="49,90" className="h-11" {...register("amount")} />}
+                    {(p) => <Input {...p} inputMode="decimal" placeholder="np. 49,90" className="h-11" {...numeric(register("amount"))} />}
                   </Field>
                   <Field label="Data" error={errors.spent_on?.message}>
                     {(p) => <Input {...p} type="date" className="h-11" {...register("spent_on")} />}

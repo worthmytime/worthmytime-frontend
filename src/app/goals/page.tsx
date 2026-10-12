@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type BudgetState, type Category, type GoalDeposit, type SavingsGoal } from "@/lib/api";
 import { money, num } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber, parseNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber, parseNumber, numeric } from "@/lib/forms";
 import { CATEGORY_INFO } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { cn } from "@/lib/utils";
@@ -117,17 +117,17 @@ export default function GoalsPage() {
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Kwota docelowa" error={errors.target_amount?.message}>
-                {(p) => <Input {...p} inputMode="decimal" placeholder="5000" className="h-11" {...register("target_amount")} />}
+                {(p) => <Input {...p} inputMode="decimal" placeholder="np. 5000" className="h-11" {...numeric(register("target_amount"))} />}
               </Field>
               <Field label="Już odłożone" error={errors.saved_amount?.message}>
-                {(p) => <Input {...p} inputMode="decimal" placeholder="0" className="h-11" {...register("saved_amount")} />}
+                {(p) => <Input {...p} inputMode="decimal" placeholder="np. 0" className="h-11" {...numeric(register("saved_amount"))} />}
               </Field>
               <Field
                 label="Miesięczna wpłata"
                 hint={category ? "Zostaw puste, a przyjmiemy maksimum z kategorii" : "Z niej liczymy przewidywaną datę"}
                 error={errors.monthly_contribution?.message}
               >
-                {(p) => <Input {...p} inputMode="decimal" placeholder="1000" className="h-11" {...register("monthly_contribution")} />}
+                {(p) => <Input {...p} inputMode="decimal" placeholder="np. 1000" className="h-11" {...numeric(register("monthly_contribution"))} />}
               </Field>
               <Field label="Termin (opcjonalnie)" hint="Policzymy wymaganą wpłatę" error={errors.target_date?.message}>
                 {(p) => <Input {...p} type="date" className="h-11" {...register("target_date")} />}
