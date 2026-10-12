@@ -151,6 +151,12 @@ export interface LifeContextState {
   filled: boolean;
 }
 
+/** Wiadomość w rozmowie z asystentem AI (`POST /assistant/chat`). */
+export interface AssistantMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;
