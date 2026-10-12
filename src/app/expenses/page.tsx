@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category, ExpenseTemplate } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
 import { suggestCategory } from "@/lib/ai";
 import { todayIso } from "@/lib/ledger";
 import { countsThisMonth, dateLabel, dueText, installmentsToShow, isoDate } from "@/lib/loans";
@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 const schema = z.object({
   amount: z
     .string()
-    .transform((s) => Number(s.replace(",", ".")))
+    .transform((s) => parseNumber(s))
     .refine((n) => Number.isFinite(n) && n > 0, "Podaj kwotę większą od zera"),
   note: z.string().trim().max(200),
   spent_on: z.string().min(1, "Podaj datę"),
@@ -140,7 +140,7 @@ export default function ExpensesPage() {
   async function saveTemplate() {
     clearErrors(["amount", "note"]);
     const name = getValues("note").trim();
-    const amount = Number(getValues("amount").replace(",", "."));
+    const amount = parseNumber(getValues("amount"));
     if (!Number.isFinite(amount) || amount <= 0) return setError("amount", { message: "Podaj kwotę większą od zera" });
     if (!name) return setError("note", { message: "Wpisz w notatce nazwę szablonu, np. kawa" });
     try {

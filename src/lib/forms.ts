@@ -2,17 +2,29 @@ import type { FieldPath, FieldValues, UseFormSetError } from "react-hook-form";
 import { z } from "zod";
 import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type Profile } from "./api";
 
-/** Pole liczbowe z inputu tekstowego: "" -> null, przecinek dziesiętny dozwolony. */
+/**
+ * Liczba z pola tekstowego w polskim zapisie: "1 299,99" -> 1299.99. Spacje (także niełamiące) grupują tysiące,
+ * przecinek albo kropka oddziela grosze. Puste pole i tekst, który nie jest liczbą, dają NaN.
+ */
+export const parseNumber = (value: string): number => {
+  const s = value.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+  return s === "" ? NaN : Number(s);
+};
+
+/** Liczba do pola tekstowego: z przecinkiem dziesiętnym, tak jak wpisuje ją użytkownik. */
+export const numberToInput = (n: number | null | undefined): string => (n == null ? "" : String(n).replace(".", ","));
+
+/** Pole liczbowe z inputu tekstowego: "" -> null, zapis polski ("1 299,99") dozwolony. */
 export const optionalNumber = z
   .string()
-  .transform((s) => (s.trim() === "" ? null : Number(s.replace(",", "."))))
-  .refine((n) => n === null || Number.isFinite(n), "Podaj liczbę");
+  .transform((s) => (s.trim() === "" ? null : parseNumber(s)))
+  .refine((n) => n === null || Number.isFinite(n), "Podaj liczbę, np. 1 299,99");
 
 export const requiredNumber = (label: string) =>
   z
     .string()
-    .transform((s) => (s.trim() === "" ? NaN : Number(s.replace(",", "."))))
-    .refine((n) => Number.isFinite(n), `${label}: podaj liczbę`);
+    .transform((s) => parseNumber(s))
+    .refine((n) => Number.isFinite(n), `${label}: podaj liczbę, np. 1 299,99`);
 
 export const FREQUENCIES = ["ONE_TIME", "DAILY", "WEEKLY", "MONTHLY", "YEARLY"] as const satisfies readonly Frequency[];
 export const CALC_TYPES = ["SIMPLE", "TCO", "RECURRING"] as const satisfies readonly CalcType[];
@@ -202,10 +214,10 @@ export const budgetToForm = (b: BudgetPlan | null): BudgetFormIn => {
     rollover_FUN: !!p.rollover?.FUN,
     loans: (p.loans ?? []).map((l) => ({
       name: l.name,
-      installment_amount: String(l.installment_amount),
+      installment_amount: numberToInput(l.installment_amount),
       // z datą końca liczba rat jest wyliczana na bieżąco - nie wpisujemy zapisanej migawki do formularza
       installments_left: l.installments_left && !l.end_date ? String(l.installments_left) : "",
-      loan_amount: l.loan_amount ? String(l.loan_amount) : "",
+      loan_amount: l.loan_amount ? numberToInput(l.loan_amount) : "",
       start_date: l.start_date ?? "",
       end_date: l.end_date ?? "",
       payment_day: l.payment_day ? String(l.payment_day) : "",

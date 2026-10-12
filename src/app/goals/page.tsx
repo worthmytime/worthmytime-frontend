@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api, type BudgetState, type Category, type GoalDeposit, type SavingsGoal } from "@/lib/api";
 import { money, num } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, optionalNumber, requiredNumber, parseNumber } from "@/lib/forms";
 import { CATEGORY_INFO } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { cn } from "@/lib/utils";
@@ -196,7 +196,7 @@ function GoalCard({
   const [history, setHistory] = useState<GoalDeposit[] | null>(null);
   // wpłata trafia do rejestru w kategorii celu, a gdy cel jej nie ma, w Przyszłości
   const expenseCategory: Category = g.category ?? "FUTURE";
-  const typed = Number(amount.replace(",", "."));
+  const typed = parseNumber(amount);
   const left = available && Number.isFinite(typed) && typed > 0 ? available[expenseCategory] - typed : null;
 
   const loadHistory = () =>
@@ -215,7 +215,7 @@ function GoalCard({
   }
 
   async function deposit(sign: 1 | -1) {
-    const value = Number(amount.replace(",", "."));
+    const value = parseNumber(amount);
     if (!Number.isFinite(value) || value <= 0) {
       toast.error("Podaj kwotę większą od zera");
       return;
