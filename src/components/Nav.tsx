@@ -14,6 +14,7 @@ import {
   ReceiptIcon,
   RepeatIcon,
   ScaleIcon,
+  SparklesIcon,
   TargetIcon,
   UserRoundIcon,
   type LucideIcon,
@@ -47,6 +48,7 @@ const primary: Item[] = [
 
 /** Reszta schowana pod "Więcej", żeby pasek nie puchł. */
 const more: Item[] = [
+  { href: "/assistant", label: "Asystent AI", icon: SparklesIcon },
   { href: "/goals", label: "Cele", icon: TargetIcon },
   { href: "/compare", label: "Porównaj", icon: ScaleIcon },
   { href: "/summary", label: "Podsumowanie", icon: ClockIcon },
