@@ -18,7 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { suggestCategory } from "@/lib/ai";
 import { api, type BudgetState, type Category, type WishlistItem, type WishlistStats } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage, requiredNumber } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, requiredNumber, numeric } from "@/lib/forms";
 import { cn } from "@/lib/utils";
 
 const schema = z.object({
@@ -236,10 +236,10 @@ export default function WishlistPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Cena" error={errors.price?.message}>
-                {(p) => <Input {...p} inputMode="decimal" placeholder="2500" className="h-11" {...register("price")} />}
+                {(p) => <Input {...p} inputMode="decimal" placeholder="np. 2500" className="h-11" {...numeric(register("price"))} />}
               </Field>
               <Field label="Odczekaj (dni)" error={errors.cooldown_days?.message}>
-                {(p) => <Input {...p} inputMode="numeric" className="h-11" {...register("cooldown_days")} />}
+                {(p) => <Input {...p} inputMode="numeric" className="h-11" {...numeric(register("cooldown_days"))} />}
               </Field>
             </div>
             <div className="flex flex-wrap gap-2" aria-label="Szybki wybór okresu">

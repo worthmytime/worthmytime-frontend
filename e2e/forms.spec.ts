@@ -110,3 +110,22 @@ test("budżet: pasek zapisu pokazuje stan i sumę, a wyjście z niezapisanymi zm
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_budget") ?? "null"));
   expect(saved.percentages.FUN).toBe(20); // zostaje wartość z ostatniego zapisu
 });
+
+test("pola kwot nie przyjmują liter, podpowiedzi mają „np.”, a kategorie mieszczą się w przyciskach", async ({ page }) => {
+  await withLocalProfile(page);
+  await page.goto("/calculator");
+
+  const price = page.getByLabel("Cena");
+  await expect(price).toHaveAttribute("placeholder", "np. 5299"); // podpowiedź nie wygląda jak wpisana wartość
+  await price.fill("abc");
+  await expect(price).toHaveValue(""); // litery znikają już podczas pisania
+  await price.fill("12a 99,5 zł");
+  await expect(price).toHaveValue("12 99,5 ");
+
+  // etykiety kategorii w jednej linii i w całości widoczne
+  for (const name of ["Bez kategorii", "Przyjemności"]) {
+    const button = page.getByRole("radio", { name });
+    const fits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().height < 60);
+    expect(fits, name).toBe(true);
+  }
+});

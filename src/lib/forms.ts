@@ -1,4 +1,4 @@
-import type { FieldPath, FieldValues, UseFormSetError } from "react-hook-form";
+import type { FieldPath, FieldValues, UseFormRegisterReturn, UseFormSetError } from "react-hook-form";
 import { z } from "zod";
 import { ApiError, type BudgetPlan, type CalcType, type CalculationIn, type Category, type Frequency, type LoanIn, type Profile } from "./api";
 
@@ -10,6 +10,21 @@ export const parseNumber = (value: string): number => {
   const s = value.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
   return s === "" ? NaN : Number(s);
 };
+
+/** Znaki dozwolone w polu liczbowym: cyfry, spacja, przecinek, kropka i minus. */
+export const numericOnly = (value: string) => value.replace(/[^\d\s.,-]/g, "");
+
+/**
+ * Pole liczbowe formularza: litery i inne znaki znikają już podczas pisania, a nie dopiero przy sprawdzaniu.
+ * Użycie: `<Input {...numeric(register("price"))} />`.
+ */
+export const numeric = <T extends UseFormRegisterReturn>(field: T): T => ({
+  ...field,
+  onChange: (event: { target: { value: string } }) => {
+    event.target.value = numericOnly(event.target.value);
+    return field.onChange(event);
+  },
+});
 
 /** Liczba do pola tekstowego: z przecinkiem dziesiętnym, tak jak wpisuje ją użytkownik. */
 export const numberToInput = (n: number | null | undefined): string => (n == null ? "" : String(n).replace(".", ","));

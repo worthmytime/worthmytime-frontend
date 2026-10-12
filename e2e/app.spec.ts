@@ -18,7 +18,7 @@ test("onboarding profilu, a potem obliczenie zakupu", async ({ page }) => {
   // wypłata -> miesiąc -> lata, w tej kolejności
   await expect(page.getByTestId("income-share")).toContainText("75,7% Twojej miesięcznej wypłaty");
   await expect(page.getByTestId("months")).toContainText("0,76 miesiąca pracy");
-  await expect(page.getByTestId("years")).toContainText("0,06 roku pracy");
+  await expect(page.getByTestId("years")).toContainText("6% roku pracy");
   const [monthsY, yearsY] = await Promise.all([
     page.getByTestId("months").boundingBox().then((b) => b!.y),
     page.getByTestId("years").boundingBox().then((b) => b!.y),
