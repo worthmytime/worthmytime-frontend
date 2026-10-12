@@ -152,9 +152,12 @@ function Calculator() {
           <span className="text-muted-foreground">
             Twoja godzina pracy: <b className="text-foreground">{rate != null ? money(rate, currency) : "-"}</b>
           </span>
-          <Link href="/profile" className="inline-flex items-center gap-1 text-primary hover:underline">
-            <Settings2Icon className="size-3.5" /> Zmień
-          </Link>
+          {/* profil finansowy edytuje się na stronie Profil, a ta przed zalogowaniem pokazuje tylko logowanie */}
+          {loggedIn && (
+            <Link href="/profile" className="inline-flex items-center gap-1 text-primary hover:underline">
+              <Settings2Icon className="size-3.5" /> Zmień
+            </Link>
+          )}
         </div>
 
         <Card>
