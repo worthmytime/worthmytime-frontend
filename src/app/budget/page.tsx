@@ -37,7 +37,7 @@ const toIntOrNull = (s: string | undefined) => {
 const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? Number(s.replace(",", ".")) : 0) || 0;
 
 export default function BudgetPage() {
-  const { ready, profile, monthlyIncome, budget, saveBudget } = useApp();
+  const { ready, profile, monthlyIncome, budget, saveBudget, loggedIn } = useApp();
   const ledger = useLedger();
   if (!ready || ledger.loading) return <Skeleton className="mx-auto h-96 max-w-2xl" />;
   if (!profile || monthlyIncome == null) return <OnboardingCard />;
@@ -51,6 +51,9 @@ export default function BudgetPage() {
       budget={budget}
       save={saveBudget}
       spent={ledger.totals}
+      loggedIn={loggedIn}
+      carried={ledger.serverBudget?.rollover_amounts}
+      onSaved={ledger.reload}
     />
   );
 }
@@ -62,8 +65,15 @@ function BudgetForm({
   budget,
   save,
   spent: spentByCategory,
+  loggedIn,
+  carried,
+  onSaved,
 }: {
   spent: Record<Category, number>;
+  loggedIn: boolean;
+  /** środki przeniesione na bieżący miesiąc (z API; bez konta brak) */
+  carried?: Record<Category, number>;
+  onSaved: () => Promise<void>;
   income: number;
   hourlyRate: number;
   currency: string;
@@ -104,7 +114,8 @@ function BudgetForm({
 
   async function submit(values: BudgetFormOut) {
     try {
-      await save(budgetFromForm(values));
+      await save(budgetFromForm(values, loggedIn));
+      await onSaved(); // przeniesione kwoty liczy serwer, więc po zmianie ustawienia pobieramy je ponownie
       toast.success("Budżet zapisany");
     } catch (e) {
       if (!applyServerErrors(e, setError)) toast.error(errorMessage(e, "Nie udało się zapisać budżetu"));
@@ -125,7 +136,10 @@ function BudgetForm({
         <div className="grid gap-4 md:grid-cols-2 md:items-start">
         {BUDGET_CATEGORIES.map((c) => {
           const info = CATEGORY_INFO[c];
-          const amount = (income * pct(c)) / 100;
+          const rollover = !!w[`rollover_${c}`];
+          // przeniesiona kwota obowiązuje tylko przy włączonej opcji (po wyłączeniu znika od razu, jeszcze przed zapisem)
+          const carry = rollover ? (carried?.[c] ?? 0) : 0;
+          const amount = (income * pct(c)) / 100 + carry;
           const loansHere = c === "NEEDS" ? monthlyLoans : 0;
           const available = amount - spent(c) - loansHere;
           return (
@@ -147,6 +161,25 @@ function BudgetForm({
                   <b className={available < 0 ? "text-destructive tabular-nums" : "text-foreground tabular-nums"}>{money(available, currency)}</b>
                 </p>
                 <DailyLimit budget={amount} variableSpent={spent(c)} fixed={loansHere} currency={currency} testId={`daily-${c}`} />
+                {loggedIn ? (
+                  <label className="flex items-start gap-2 text-sm">
+                    <input type="checkbox" role="switch" className="mt-0.5 size-5 shrink-0" {...register(`rollover_${c}`)} />
+                    <span>
+                      Przenoś niewykorzystane środki na kolejny miesiąc
+                      <span className="block text-xs text-muted-foreground" data-testid={`rollover-info-${c}`}>
+                        {!rollover
+                          ? "Wyłączone: każdy miesiąc zaczyna się od samego budżetu kategorii."
+                          : carry > 0
+                            ? `W tym miesiącu przeniesiono ${money(carry, currency)} (wliczone w budżet powyżej).`
+                            : "W tym miesiącu nic nie przeniesiono. To, czego nie wydasz, przejdzie na następny miesiąc (najwyżej jeden miesięczny budżet)."}
+                      </span>
+                    </span>
+                  </label>
+                ) : (
+                  <p className="text-xs text-muted-foreground" data-testid={`rollover-info-${c}`}>
+                    Przenoszenie niewykorzystanych środków na kolejny miesiąc jest dostępne po zalogowaniu.
+                  </p>
+                )}
               </CardContent>
             </Card>
           );
@@ -301,7 +334,18 @@ function BudgetForm({
           <Button type="submit" size="lg" className="h-11 px-6 text-base" disabled={isSubmitting}>
             {isSubmitting ? "Zapisuję…" : "Zapisz budżet"}
           </Button>
-          <Button type="button" variant="outline" className="h-11" onClick={() => reset({ ...budgetToForm(null), loans: getValues("loans") })}>
+          <Button type="button" variant="outline" className="h-11" onClick={() => {
+              // wracają tylko procenty: kredyty i przenoszenie środków zostają
+              const v = getValues();
+              reset({
+                ...budgetToForm(null),
+                rollover_NEEDS: v.rollover_NEEDS,
+                rollover_FUTURE: v.rollover_FUTURE,
+                rollover_GOALS: v.rollover_GOALS,
+                rollover_FUN: v.rollover_FUN,
+                loans: v.loans,
+              });
+            }}>
             Przywróć 50/25/15/10
           </Button>
         </div>

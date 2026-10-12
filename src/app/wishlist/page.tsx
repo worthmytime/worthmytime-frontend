@@ -16,10 +16,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { suggestCategory } from "@/lib/ai";
-import { api, type Category, type WishlistItem, type WishlistStats } from "@/lib/api";
-import { CATEGORY_INFO } from "@/lib/format";
-import { money, num } from "@/lib/format";
+import { api, type BudgetState, type Category, type WishlistItem, type WishlistStats } from "@/lib/api";
+import { CATEGORY_INFO, money, num } from "@/lib/format";
 import { BUDGET_CATEGORIES, errorMessage, requiredNumber } from "@/lib/forms";
+import { cn } from "@/lib/utils";
 
 const schema = z.object({
   name: z.string().trim().min(1, "Podaj nazwę").max(200),
@@ -42,6 +42,9 @@ export default function WishlistPage() {
   // pozycja rozstrzygnięta, przy której czeka potwierdzenie usunięcia
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [data, setData] = useState<Payload | null>(null);
+  // potwierdzenie zakupu: pozycja, przy której pytamy, czy dopisać wydatek i w jakiej kategorii
+  const [buying, setBuying] = useState<{ id: string; addExpense: boolean; category: Category } | null>(null);
+  const [available, setAvailable] = useState<Record<Category, number> | null>(null);
   const [suggestedCategory, setSuggestedCategory] = useState<Category | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const form = useForm<FormIn, unknown, FormOut>({
@@ -60,9 +63,13 @@ export default function WishlistPage() {
 
   const load = useCallback(
     () =>
-      api<Payload>("/wishlist")
-        .then(setData)
-        .catch((e) => toast.error(errorMessage(e, "Nie udało się pobrać listy życzeń"))),
+      Promise.all([
+        api<Payload>("/wishlist").then(setData),
+        // dostępne środki kategorii służą tylko do podpowiedzi przy zakupie, więc ich brak niczego nie blokuje
+        api<BudgetState>("/budget")
+          .then((b) => setAvailable(b.available))
+          .catch(() => setAvailable(null)),
+      ]).catch((e) => toast.error(errorMessage(e, "Nie udało się pobrać listy życzeń"))),
     [],
   );
 
@@ -103,13 +110,47 @@ export default function WishlistPage() {
   }
 
   async function decide(item: WishlistItem, decision: "BOUGHT" | "DROPPED") {
+    // zakup pyta wcześniej, czy dopisać wydatek (i do której kategorii); odpuszczenie niczego nie dopisuje
+    const expense = decision === "BOUGHT" && buying?.id === item.id ? buying : null;
+    const body =
+      decision === "BOUGHT"
+        ? { decision, add_expense: !!expense?.addExpense, ...(expense?.addExpense ? { category: expense.category } : {}) }
+        : { decision };
     try {
-      await api(`/wishlist/${item.id}/decision`, { body: { decision } });
-      toast.success(decision === "DROPPED" ? "Odpuszczone - dobra decyzja dla Twojego czasu" : "Zapisano jako kupione");
+      await api(`/wishlist/${item.id}/decision`, { body });
+      setBuying(null);
+      toast.success(
+        decision === "DROPPED"
+          ? "Odpuszczone - dobra decyzja dla Twojego czasu"
+          : expense?.addExpense
+            ? "Zapisano jako kupione i dopisano do wydatków"
+            : "Zapisano jako kupione",
+      );
       await load();
     } catch (e) {
       toast.error(errorMessage(e));
     }
+  }
+
+  /** Cofnięcie decyzji: pozycja wraca do oczekujących, a wydatek dopisany przy zakupie znika z rejestru. */
+  async function undo(item: WishlistItem) {
+    try {
+      await api(`/wishlist/${item.id}/decision`, { method: "DELETE" });
+      toast.success(item.status === "BOUGHT" ? "Zakup cofnięty, wydatek usunięty z rejestru" : "Decyzja cofnięta");
+      await load();
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }
+
+  /** Jednym zdaniem: jak zakup zmieni dostępne środki wybranej kategorii. */
+  function impact(price: number, category: Category) {
+    const label = CATEGORY_INFO[category].label;
+    if (!available) return `Wydatek obciąży budżet kategorii ${label}.`;
+    const left = available[category] - price;
+    return left >= 0
+      ? `W kategorii ${label} zostanie ${money(left, currency)} z ${money(available[category], currency)} dostępnych w tym miesiącu.`
+      : `Zakup przekroczy dostępne środki kategorii ${label} o ${money(-left, currency)} (dostępne: ${money(available[category], currency)}).`;
   }
 
   async function remove(item: WishlistItem) {
@@ -253,11 +294,64 @@ export default function WishlistPage() {
                     Odpuszczam
                   </Button>
                   {i.ready && (
-                    <Button className="h-10" onClick={() => decide(i, "BOUGHT")}>
+                    <Button
+                      className="h-10"
+                      aria-expanded={buying?.id === i.id}
+                      onClick={() => setBuying(buying?.id === i.id ? null : { id: i.id, addExpense: true, category: i.category ?? "FUN" })}
+                    >
                       Kupuję
                     </Button>
                   )}
                 </div>
+                {buying?.id === i.id && (
+                  <div className="grid gap-3 rounded-lg bg-muted/60 p-3 text-sm" role="group" aria-label={`Potwierdź zakup: ${i.name}`}>
+                    <label className="flex items-start gap-2">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 size-5 shrink-0"
+                        checked={buying.addExpense}
+                        onChange={(e) => setBuying({ ...buying, addExpense: e.target.checked })}
+                      />
+                      <span>Dopisz zakup do wydatków ({money(i.price, currency)})</span>
+                    </label>
+                    {buying.addExpense ? (
+                      <>
+                        <div role="radiogroup" aria-label="Kategoria wydatku" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {BUDGET_CATEGORIES.map((c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              role="radio"
+                              aria-checked={buying.category === c}
+                              onClick={() => setBuying({ ...buying, category: c })}
+                              className={cn(
+                                "min-h-10 rounded-lg border bg-background px-2 text-sm font-medium transition-colors",
+                                buying.category === c ? "border-primary bg-primary/10" : "text-muted-foreground hover:bg-muted",
+                              )}
+                            >
+                              {CATEGORY_INFO[c].label}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground" data-testid="buy-impact">
+                          {impact(i.price, buying.category)}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground" data-testid="buy-impact">
+                        Zakup zostanie tylko odnotowany na liście życzeń, bez wpisu w rejestrze wydatków.
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <Button className="h-10" onClick={() => decide(i, "BOUGHT")}>
+                        Potwierdź zakup
+                      </Button>
+                      <Button variant="outline" className="h-10" onClick={() => setBuying(null)}>
+                        Anuluj
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
@@ -277,6 +371,9 @@ export default function WishlistPage() {
                       <span className="flex shrink-0 items-center gap-2 tabular-nums text-muted-foreground">
                         {money(i.price, currency)}
                         <Badge variant={i.status === "DROPPED" ? "secondary" : "outline"}>{i.status === "DROPPED" ? "odpuszczone" : "kupione"}</Badge>
+                        <Button variant="ghost" size="sm" aria-label={`Cofnij decyzję: ${i.name}`} onClick={() => undo(i)}>
+                          Cofnij
+                        </Button>
                         <Button
                           variant="ghost"
                           className="size-9"

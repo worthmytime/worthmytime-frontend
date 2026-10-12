@@ -23,6 +23,8 @@ export interface BudgetPlan {
   percentages: Record<Category, number>;
   spent: Record<Category, number>;
   loans: LoanIn[];
+  /** Przenoszenie niewykorzystanych środków kategorii na kolejny miesiąc (tylko konto; brak pola = bez zmian). */
+  rollover?: Record<Category, boolean>;
 }
 
 export interface Expense {
@@ -31,8 +33,11 @@ export interface Expense {
   amount: number;
   note: string | null;
   spent_on: string; // YYYY-MM-DD
-  /** pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku); brak = wpis ręczny */
-  source_type?: "RECURRING" | "LOAN" | "IMPORT" | null;
+  /**
+   * pochodzenie wpisu: RECURRING (stały wydatek), LOAN (opłacona rata), IMPORT (import z banku),
+   * WISH (zakup z listy życzeń), GOAL (wpłata na cel); brak = wpis ręczny
+   */
+  source_type?: "RECURRING" | "LOAN" | "IMPORT" | "WISH" | "GOAL" | null;
   source_id?: string | null;
 }
 
@@ -67,6 +72,37 @@ export interface MonthSummary {
   total: number;
 }
 
+/** Kategoria w podsumowaniu miesiąca: budżet, wydane i porównanie z poprzednim miesiącem. */
+export interface MonthReportCategory {
+  category: Category;
+  budget: number;
+  spent: number;
+  available: number;
+  usage_percent: number | null;
+  previous: number;
+  change: number;
+  change_percent: number | null; // null, gdy miesiąc wcześniej nie było wydatków
+}
+
+/** Podsumowanie miesiąca z `GET /reports/month`. */
+export interface MonthReport {
+  month: string; // YYYY-MM
+  previous_month: string;
+  currency: string;
+  monthly_income: number;
+  categories: MonthReportCategory[];
+  total_spent: number;
+  previous: number;
+  change: number;
+  change_percent: number | null;
+  /** future: wpisy w kategorii Przyszłość; unspent: dochód minus wszystkie wydatki (nie mniej niż 0) */
+  saved: { future: number; unspent: number; /** wpłaty na cele minus wypłaty w tym miesiącu */ goals?: number };
+  /** wydatki uznaniowe (Cele i Przyjemności) i czas pracy, który na nie poszedł */
+  discretionary: { spent: number; work_hours: number | null };
+  largest_expense: { id: string; category: Category; amount: number; note: string | null; spent_on: string } | null;
+  entries: number;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;
@@ -89,6 +125,15 @@ export interface WishlistStats {
   waiting_count: number;
   waiting_total: number;
   ready_count: number;
+}
+
+/** Wpłata na cel (kwota dodatnia) albo wypłata (ujemna) z historii celu. */
+export interface GoalDeposit {
+  id: string;
+  amount: number;
+  deposited_on: string; // YYYY-MM-DD
+  /** wpłata ma powiązany wpis w rejestrze wydatków */
+  in_ledger: boolean;
 }
 
 export interface SavingsGoal {
@@ -120,8 +165,11 @@ export interface BudgetState extends BudgetPlan {
   monthly_loans: number;
   loans_income_percent: number | null;
   last_installment_in_months: number;
+  /** budżet kategorii razem ze środkami przeniesionymi z poprzednich miesięcy */
   amounts: Record<Category, number> | null;
   available: Record<Category, number> | null;
+  /** środki przeniesione na bieżący miesiąc w kategoriach z włączonym przenoszeniem */
+  rollover_amounts?: Record<Category, number>;
   monthly_income: number | null;
   total_spent: number;
   is_custom: boolean;
