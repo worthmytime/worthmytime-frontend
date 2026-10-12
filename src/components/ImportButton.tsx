@@ -36,7 +36,7 @@ interface Group {
 
 interface Props {
   currency: string;
-  onImport: (items: ImportedExpense[]) => Promise<{ created: number; skipped: number }>;
+  onImport: (items: ImportedExpense[], fileName?: string) => Promise<{ created: number; skipped: number; undoable?: boolean }>;
 }
 
 /** Wczytany plik: gotowy wyciąg iPKO albo dowolna tabela z dopasowaniem kolumn do pól wydatku. */
@@ -171,7 +171,7 @@ export default function ImportButton({ currency, onImport }: Props) {
       const items: ImportedExpense[] = toImport.flatMap((g) =>
         g.items.map((t) => ({ key: t.key, category: choices[g.key] as Category, amount: t.amount, note: t.note, spent_on: t.date })),
       );
-      const result = await onImport(items);
+      const result = await onImport(items, fileName);
       const rules = loadRules();
       for (const g of toImport) rules[g.key] = choices[g.key] as Category;
       saveRules(rules);
@@ -179,6 +179,7 @@ export default function ImportButton({ currency, onImport }: Props) {
         result.skipped > 0
           ? `Zaimportowano ${result.created}, pominięto ${result.skipped} już istniejących`
           : `Zaimportowano ${result.created} wydatków`,
+        result.undoable ? { description: "Ten import możesz cofnąć w zakładce Zdarzenia." } : undefined,
       );
       setSource(null);
     } catch (e) {

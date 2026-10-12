@@ -12,7 +12,7 @@ import { suggestCategory } from "@/lib/ai";
 import { CATEGORY_INFO, FREQ_LABEL } from "@/lib/format";
 import { useCategoryAvailability } from "@/lib/use-availability";
 import { money } from "@/lib/format";
-import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut } from "@/lib/forms";
+import { BUDGET_CATEGORIES, emptyCalcForm, FREQUENCIES, type CalcFormIn, type CalcFormOut, parseNumber } from "@/lib/forms";
 import type { CalcType } from "@/lib/api";
 import { useApp } from "./AppProvider";
 import { Field } from "./FormField";
@@ -52,7 +52,7 @@ export default function CalculationFields({ form }: { form: CalcForm }) {
   const currency = profile?.currency ?? "PLN";
   const availability = useCategoryAvailability();
   const free = category && availability ? Math.max(availability[category], 0) : null;
-  const plannedNumber = Number(String(planned ?? "").replace(",", "."));
+  const plannedNumber = parseNumber(String(planned ?? ""));
   const overMax = free != null && planned !== "" && Number.isFinite(plannedNumber) && plannedNumber > free;
   const costsError = errors.costs?.root?.message ?? (errors.costs as { message?: string } | undefined)?.message;
 

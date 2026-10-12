@@ -10,13 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { Category, Expense } from "@/lib/api";
 import { CATEGORY_INFO } from "@/lib/format";
-import { BUDGET_CATEGORIES, errorMessage } from "@/lib/forms";
+import { BUDGET_CATEGORIES, errorMessage, parseNumber } from "@/lib/forms";
 import type { NewExpense } from "@/lib/use-ledger";
 
 const schema = z.object({
   amount: z
     .string()
-    .transform((s) => Number(s.replace(",", ".")))
+    .transform((s) => parseNumber(s))
     .refine((n) => Number.isFinite(n) && n > 0, "Podaj kwotę większą od zera"),
   note: z.string().trim().max(200),
   spent_on: z.string().min(1, "Podaj datę"),

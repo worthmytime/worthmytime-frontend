@@ -103,6 +103,54 @@ export interface MonthReport {
   entries: number;
 }
 
+/** Jeden import wyciągu w historii zdarzeń (`GET /imports`); cofnięcie usuwa wpisy, które dopisał. */
+export interface ImportBatch {
+  id: string;
+  /** nazwa pliku z rozszerzeniem; null dla importu bez podanej nazwy */
+  file_name: string | null;
+  imported_at: string; // data i godzina importu (ISO)
+  created: number;
+  skipped: number;
+  total: number;
+  /** wpisy z tego importu, które są jeszcze w rejestrze */
+  remaining: number;
+  undone_at: string | null;
+}
+
+/** Wywiad o sytuacji życiowej (`GET/PUT /profile/context`); null = brak odpowiedzi. Kontekst dla podpowiedzi Jev. */
+export interface LifeContext {
+  housing: "WITH_PARENTS" | "RENT" | "OWN_MORTGAGE" | "OWN" | "OTHER" | null;
+  household_size: number | null;
+  children: number | null;
+  car: "NONE" | "OWN" | "FINANCED" | null;
+  car_age_years: number | null;
+  commute: "CAR" | "PUBLIC" | "BIKE_WALK" | "NONE" | null;
+  work_mode: "REMOTE" | "HYBRID" | "ONSITE" | "NOT_WORKING" | null;
+  employment: "EMPLOYEE" | "SELF_EMPLOYED" | "STUDENT" | "RETIRED" | "OTHER" | null;
+  phone_age_years: number | null;
+  computer_age_years: number | null;
+  has_emergency_fund: boolean | null;
+  /** na ile miesięcy wydatków wystarczy poduszka */
+  emergency_fund_months: number | null;
+  saves_regularly: boolean | null;
+  invests: boolean | null;
+  has_pets: boolean | null;
+  pets_description: string | null;
+  regular_health_costs: boolean | null;
+  does_sport: boolean | null;
+  pays_for_education: boolean | null;
+  /** własne kategorie użytkownika: coś ważnego, czego nie ma na liście pytań */
+  custom: { name: string; description: string }[];
+  notes: string | null;
+}
+
+export interface LifeContextState {
+  context: LifeContext;
+  /** zdania, którymi opisujemy użytkownika Jev */
+  summary: string[];
+  filled: boolean;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;

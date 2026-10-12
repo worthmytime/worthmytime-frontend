@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { useApp } from "@/components/AppProvider";
@@ -15,26 +16,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Category } from "@/lib/api";
 import { CATEGORY_INFO, money, num } from "@/lib/format";
-import { dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
+import { countsThisMonth, dateLabel, lastPaymentDate, nextInstallment, remainingInstallments, repaymentProgress } from "@/lib/loans";
 import { useLedger } from "@/lib/use-ledger";
-import {
-  applyServerErrors,
-  BUDGET_CATEGORIES,
-  budgetFromForm,
-  budgetSchema,
-  budgetToForm,
-  errorMessage,
-  type BudgetFormIn,
-  type BudgetFormOut,
-} from "@/lib/forms";
+import { applyServerErrors, BUDGET_CATEGORIES, budgetFromForm, budgetSchema, budgetToForm, errorMessage, type BudgetFormIn, type BudgetFormOut, parseNumber } from "@/lib/forms";
 
 const toIntOrNull = (s: string | undefined) => {
   if (!s || s.trim() === "") return null;
-  const n = Math.floor(Number(s.replace(",", ".")));
+  const n = Math.floor(parseNumber(s));
   return Number.isFinite(n) ? n : null;
 };
 
-const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? Number(s.replace(",", ".")) : 0) || 0;
+const toNumber = (s: string | undefined) => (s && s.trim() !== "" ? parseNumber(s) : 0) || 0;
 
 export default function BudgetPage() {
   const { ready, profile, monthlyIncome, budget, saveBudget, loggedIn } = useApp();
@@ -102,15 +94,35 @@ function BudgetForm({
       end_date: l?.end_date || null,
       payment_day: toIntOrNull(l?.payment_day),
     };
-    return { installment: toNumber(l?.installment_amount), left: remainingInstallments(loan), loan };
+    return { installment: toNumber(l?.installment_amount), left: remainingInstallments(loan), counts: countsThisMonth(loan), loan };
   });
-  // spłacone kredyty (0 pozostałych rat) nie obciążają budżetu
-  const monthlyLoans = loans.filter((x) => x.left > 0).reduce((s, l) => s + l.installment, 0);
+  // budżet miesiąca obciąża każda rata wymagalna w tym miesiącu (także ostatnia, po terminie); spłacone wcześniej kredyty nie
+  const monthlyLoans = loans.filter((x) => x.counts).reduce((s, l) => s + l.installment, 0);
   const pct = (c: Category) => toNumber(w[`pct_${c}`]);
   const spent = (c: Category) => spentByCategory[c] ?? 0;
   const sum = BUDGET_CATEGORIES.reduce((s, c) => s + pct(c), 0);
   const totalSpent = BUDGET_CATEGORIES.reduce((s, c) => s + spent(c), 0) + monthlyLoans;
   const sumOk = Math.abs(sum - 100) < 0.01;
+
+  // niezapisane zmiany: bieżąca zawartość formularza różni się od zapisanego planu
+  const savedForm = useMemo(() => JSON.stringify(budgetToForm(budget)), [budget]);
+  const dirty = JSON.stringify(w) !== savedForm;
+
+  // przejście na inną stronę (menu, linki) z niezapisanymi zmianami wymaga potwierdzenia
+  useEffect(() => {
+    if (!dirty) return;
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>("a[href]") : null;
+      if (!link || link.target === "_blank" || link.origin !== window.location.origin || link.pathname === window.location.pathname) return;
+      if (!window.confirm("Masz niezapisane zmiany w budżecie. Wyjść bez zapisywania?")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [dirty]);
 
   async function submit(values: BudgetFormOut) {
     try {
@@ -199,7 +211,7 @@ function BudgetForm({
           <CardContent className="grid gap-4">
             {fields.length === 0 && <p className="text-sm text-muted-foreground">Brak kredytów i pożyczek.</p>}
             {fields.map((f, i) => {
-              const l = loans[i] ?? { installment: 0, left: 0, loan: {} as (typeof loans)[number]["loan"] };
+              const l = loans[i] ?? { installment: 0, left: 0, counts: false, loan: {} as (typeof loans)[number]["loan"] };
               const remaining = l.installment * l.left;
               const next = l.left > 0 ? nextInstallment(l.loan) : null;
               const last = lastPaymentDate(l.loan);
@@ -251,7 +263,9 @@ function BudgetForm({
 
                   {l.loan.end_date && l.left === 0 && (
                     <p className="text-sm text-muted-foreground" data-testid={`loan-summary-${i}`}>
-                      Okres spłaty już minął - ten kredyt uznajemy za spłacony i nie liczymy go do budżetu.
+                      {l.counts
+                        ? "Ostatnia rata wypadła w tym miesiącu: liczymy ją jeszcze do budżetu tego miesiąca, od następnego już nie."
+                        : "Okres spłaty już minął - ten kredyt uznajemy za spłacony i nie liczymy go do budżetu."}
                     </p>
                   )}
                   {remaining > 0 && (
@@ -330,7 +344,20 @@ function BudgetForm({
           </CardContent>
         </Card>
 
-        <div className="flex flex-wrap gap-2">
+        {/* pasek zapisu zawsze widoczny u dołu ekranu (nad dolną nawigacją na telefonie), żeby nie trzeba było przewijać całej strony */}
+        <div
+          className="sticky bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex flex-wrap items-center gap-2 rounded-xl border bg-background/95 p-2 shadow-sm backdrop-blur lg:bottom-4"
+          data-testid="budget-save-bar"
+        >
+          <p className="min-w-0 flex-1 basis-40 px-1 text-sm" aria-live="polite" data-testid="budget-status">
+            {!sumOk ? (
+              <span className="font-medium text-destructive">Suma procentów: {num(sum, 2)}%, powinno być 100%.</span>
+            ) : dirty ? (
+              <span className="font-medium">Masz niezapisane zmiany.</span>
+            ) : (
+              <span className="text-muted-foreground">Wszystkie zmiany zapisane.</span>
+            )}
+          </p>
           <Button type="submit" size="lg" className="h-11 px-6 text-base" disabled={isSubmitting}>
             {isSubmitting ? "Zapisuję…" : "Zapisz budżet"}
           </Button>

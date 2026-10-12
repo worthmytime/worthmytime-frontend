@@ -51,6 +51,9 @@ function Calculator() {
   const [saved, setSaved] = useState<SavedCalculation | null>(null);
   const [busy, setBusy] = useState(false);
   const [lastCalc, setLastCalc] = useState<CalculationIn | null>(null);
+  // co już dodano z bieżącego wyniku: drugi klik nie może utworzyć duplikatu na liście życzeń ani drugiego celu
+  const [added, setAdded] = useState({ wishlist: false, goal: false });
+  const { isDirty } = form.formState;
 
   useEffect(() => {
     if (!editId || !loggedIn) return;
@@ -88,6 +91,7 @@ function Calculator() {
       });
       setLastCalc(calculation);
       setResult(res);
+      setAdded({ wishlist: false, goal: false }); // nowy wynik to nowa pozycja
       showResult();
     } catch (e) {
       if (!applyServerErrors(e, form.setError)) toast.error(errorMessage(e, "Błąd obliczeń"));
@@ -98,17 +102,20 @@ function Calculator() {
 
   /** Cena do listy życzeń i celu: część jednorazowa zakupu (bez kosztów utrzymania). */
   async function addToWishlist() {
-    if (!lastCalc || !(lastCalc.purchase_price > 0)) return;
+    if (!lastCalc || !(lastCalc.purchase_price > 0) || added.wishlist) return;
+    setAdded((a) => ({ ...a, wishlist: true })); // od razu, żeby szybki drugi klik niczego nie wysłał
     try {
       await api("/wishlist", { body: { name: lastCalc.name, price: lastCalc.purchase_price, category: lastCalc.category ?? null } });
       toast.success("Dodano do listy życzeń - zdecyduj po okresie ostygnięcia");
     } catch (e) {
+      setAdded((a) => ({ ...a, wishlist: false }));
       toast.error(errorMessage(e, "Nie udało się dodać do listy życzeń"));
     }
   }
 
   async function saveAsGoal() {
-    if (!lastCalc || !(lastCalc.purchase_price > 0)) return;
+    if (!lastCalc || !(lastCalc.purchase_price > 0) || added.goal) return;
+    setAdded((a) => ({ ...a, goal: true }));
     try {
       await api("/goals", {
         body: {
@@ -121,6 +128,7 @@ function Calculator() {
       });
       toast.success("Zapisano jako cel oszczędnościowy");
     } catch (e) {
+      setAdded((a) => ({ ...a, goal: false }));
       toast.error(errorMessage(e, "Nie udało się zapisać celu"));
     }
   }
@@ -137,7 +145,8 @@ function Calculator() {
       setSaved(s);
       setResult({ ...s.result, currency: s.currency });
       toast.success(saved ? "Zmiany zapisane" : "Zapisano w historii");
-      if (!editId) router.replace(`/calculator?edit=${s.id}`);
+      form.reset(form.getValues()); // zapisany stan staje się punktem odniesienia: "Zapisz zmiany" czeka na kolejną zmianę
+      if (!editId) router.replace(`/calculator?edit=${s.id}`, { scroll: false }); // bez przewijania na górę strony
     } catch (e) {
       if (!applyServerErrors(e, form.setError)) toast.error(errorMessage(e, "Nie udało się zapisać"));
     } finally {
@@ -186,15 +195,15 @@ function Calculator() {
                     <div className="flex flex-wrap gap-2">
                       {lastCalc && lastCalc.type !== "RECURRING" && lastCalc.purchase_price > 0 && (
                         <>
-                          <Button variant="outline" className="h-11" onClick={addToWishlist}>
-                            <HeartIcon /> Dodaj do listy życzeń
+                          <Button variant="outline" className="h-11" onClick={addToWishlist} disabled={added.wishlist}>
+                            <HeartIcon /> {added.wishlist ? "Dodano do listy życzeń" : "Dodaj do listy życzeń"}
                           </Button>
-                          <Button variant="outline" className="h-11" onClick={saveAsGoal}>
-                            <TargetIcon /> Zapisz jako cel
+                          <Button variant="outline" className="h-11" onClick={saveAsGoal} disabled={added.goal}>
+                            <TargetIcon /> {added.goal ? "Zapisano jako cel" : "Zapisz jako cel"}
                           </Button>
                         </>
                       )}
-                      <Button className="h-11" onClick={save} disabled={busy}>
+                      <Button className="h-11" onClick={save} disabled={busy || (saved != null && !isDirty)} title={saved && !isDirty ? "Brak zmian do zapisania" : undefined}>
                         <SaveIcon /> {saved ? "Zapisz zmiany" : "Zapisz w historii"}
                       </Button>
                       {saved && (

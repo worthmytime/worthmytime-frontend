@@ -1,7 +1,7 @@
 import type { BudgetPlan, Category, Expense } from "./api";
 import { CATEGORY_INFO, money } from "./format";
 import { totalsFor, periodOf } from "./ledger";
-import { dateLabel, isoDate, nextInstallment, parseIso, remainingInstallments } from "./loans";
+import { countsThisMonth, dateLabel, installmentsToShow, isoDate, parseIso } from "./loans";
 
 /**
  * Centrum alertów: te same reguły i kody co `GET /alerts` w API (backend/app/alerts.py).
@@ -47,7 +47,7 @@ export function localAlerts({ monthlyIncome, plan, ledger, now = new Date() }: L
   const out: AppAlert[] = [];
   const percentages = plan?.percentages ?? { NEEDS: 50, FUTURE: 25, GOALS: 15, FUN: 10 };
   const loans = plan?.loans ?? [];
-  const monthlyLoans = loans.filter((l) => remainingInstallments(l, now) > 0).reduce((s, l) => s + l.installment_amount, 0);
+  const monthlyLoans = loans.filter((l) => countsThisMonth(l, now)).reduce((s, l) => s + l.installment_amount, 0);
   const spent = totalsFor(ledger, periodOf(now));
 
   if (monthlyIncome && monthlyIncome > 0) {
@@ -81,19 +81,23 @@ export function localAlerts({ monthlyIncome, plan, ledger, now = new Date() }: L
     }
   }
 
-  // rata w ciągu 3 dni, jeśli nie jest oznaczona jako opłacona w miesiącu terminu
+  // rata w ciągu 3 dni albo po terminie (z bieżącego miesiąca), jeśli nie jest oznaczona jako opłacona w miesiącu terminu
   loans.forEach((loan) => {
-    const next = loan.payment_day ? nextInstallment(loan, now) : null;
-    if (!next || next.inDays > LOAN_DUE_DAYS) return;
-    const due = isoDate(next.date);
+    if (!loan.payment_day) return;
     const key = `local:${loan.name}:${loan.installment_amount}`;
-    const paid = ledger.some((e) => e.source_type === "LOAN" && e.source_id === key && e.spent_on.slice(0, 7) === due.slice(0, 7));
-    if (paid) return;
+    const unpaid = installmentsToShow(loan, now).filter((i) => {
+      const due = isoDate(i.date);
+      return !ledger.some((e) => e.source_type === "LOAN" && e.source_id === key && e.spent_on.slice(0, 7) === due.slice(0, 7));
+    });
+    // jeden alert na kredyt: najpierw zaległa rata, potem najbliższa w ciągu kilku dni
+    const next = unpaid.find((i) => i.inDays < 0) ?? unpaid.find((i) => i.inDays <= LOAN_DUE_DAYS);
+    if (!next) return;
+    const due = isoDate(next.date);
     out.push({
       key: `LOAN_DUE:${key}`,
       code: "LOAN_DUE",
-      level: next.inDays === 0 ? "critical" : "warning",
-      state: due,
+      level: next.inDays <= 0 ? "critical" : "warning",
+      state: next.inDays < 0 ? `${due}:overdue` : due,
       params: { name: loan.name, amount: loan.installment_amount, due_date: due, days_left: next.inDays },
       link: "/expenses",
     });
@@ -133,7 +137,19 @@ export function alertText(a: AppAlert, currency: string): AlertText {
       const days = numOf(p.days_left);
       return {
         title: `Rata: ${str(p.name)} (${money(numOf(p.amount), currency)})`,
-        body: days === 0 ? "Termin płatności jest dziś." : `Termin ${dateLabel(parseIso(str(p.due_date)))}, za ${days} ${days === 1 ? "dzień" : "dni"}.`,
+        body:
+          days === 0
+            ? "Termin płatności jest dziś."
+            : days < 0
+              ? `Termin minął ${dateLabel(parseIso(str(p.due_date)))} (${-days} ${days === -1 ? "dzień" : "dni"} temu). Oznacz ratę jako zapłaconą na stronie Wydatki.`
+              : `Termin ${dateLabel(parseIso(str(p.due_date)))}, za ${days} ${days === 1 ? "dzień" : "dni"}.`,
+      };
+    }
+    case "BUDGET_RUNS_OUT": {
+      const label = CATEGORY_INFO[p.category as Category]?.label ?? str(p.category);
+      return {
+        title: `${label}: budżet skończy się ${dateLabel(parseIso(str(p.runs_out_on)))}`,
+        body: `Przy obecnym tempie wydatków nie wystarczy do końca miesiąca. Żeby wystarczyło, wydawaj najwyżej ${money(numOf(p.daily_limit), currency)} dziennie.`,
       };
     }
     case "GOAL_OVERDUE":

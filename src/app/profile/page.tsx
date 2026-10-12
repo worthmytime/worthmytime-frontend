@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useApp } from "@/components/AppProvider";
 import { Field } from "@/components/FormField";
+import LifeContextCard from "@/components/LifeContextCard";
 import ProfileForm from "@/components/ProfileForm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +47,8 @@ export default function ProfilePage() {
           <ProfileForm key={JSON.stringify(profile)} />
         </CardContent>
       </Card>
+
+      <LifeContextCard />
 
       <Card size="sm">
         <CardContent className="flex items-center justify-between gap-3">
