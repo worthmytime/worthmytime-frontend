@@ -370,8 +370,27 @@ test("cele oszczędnościowe: postęp, data osiągnięcia i wpłata", async ({ p
   await expect(card.getByTestId("goal-percent")).toHaveText("30%");
 });
 
-test("realna stawka godzinowa: porównanie z nominalną i wybór trybu", async ({ page }) => {
+test("strona Profil: przed zalogowaniem tylko logowanie, profil finansowy dopiero na koncie", async ({ page }) => {
+  await withLocalProfile(page); // nawet z profilem zapisanym w przeglądarce formularz jest schowany
   await page.goto("/profile");
+  await expect(page.getByRole("button", { name: "Zaloguj", exact: true })).toBeVisible();
+  await expect(page.getByTestId("profile-card")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Zapisz profil" })).toHaveCount(0);
+  await expect(page.getByLabel("Miesięczny dochód netto")).toHaveCount(0);
+});
+
+test("strona Profil: po zalogowaniu widać profil finansowy z danymi konta", async ({ page }) => {
+  await asLoggedIn(page);
+  await page.goto("/profile");
+  await expect(page.getByText("Zalogowano jako")).toBeVisible();
+  await expect(page.getByTestId("profile-card").getByLabel("Miesięczny dochód netto")).toHaveValue("7000");
+  await expect(page.getByRole("button", { name: "Zapisz profil" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Zaloguj", exact: true })).toHaveCount(0);
+});
+
+test("realna stawka godzinowa: porównanie z nominalną i wybór trybu", async ({ page }) => {
+  // bez konta profil finansowy podaje się w pierwszym kroku kalkulatora (strona Profil pokazuje go dopiero po zalogowaniu)
+  await page.goto("/calculator");
   await page.getByLabel("Miesięczny dochód netto").fill("10000");
   await page.getByLabel(/Dojazd dziennie/).fill("90");
   await page.getByLabel("Koszty pracy miesięcznie").fill("600");
@@ -379,7 +398,7 @@ test("realna stawka godzinowa: porównanie z nominalną i wybór trybu", async (
   await expect(page.getByTestId("real-rate")).toContainText("45,67");
 
   await page.getByRole("radio", { name: "Licz realną" }).click();
-  await page.getByRole("button", { name: "Zapisz profil" }).click();
+  await page.getByRole("button", { name: "Dalej: policz zakup" }).click();
   await expect(page.getByText("Profil zapisany")).toBeVisible();
   const saved = await page.evaluate(() => JSON.parse(window.localStorage.getItem("wmt_profile") ?? "null"));
   expect(saved).toMatchObject({ rate_mode: "REAL", commute_minutes_per_day: 90, work_costs_monthly: 600 });

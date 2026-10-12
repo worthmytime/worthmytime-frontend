@@ -22,36 +22,42 @@ const authSchema = z.object({
 type AuthForm = z.infer<typeof authSchema>;
 
 export default function ProfilePage() {
-  const { ready, loggedIn, email, logout } = useApp();
+  const { ready, loggedIn, email, profile, logout } = useApp();
   if (!ready) return <Skeleton className="mx-auto h-96 max-w-lg" />;
+
+  // przed zalogowaniem ta strona służy tylko do logowania i rejestracji; profil finansowy pokazujemy dopiero na koncie
+  if (!loggedIn) {
+    return (
+      <div className="mx-auto grid max-w-lg gap-6">
+        <AuthCard />
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto grid max-w-lg gap-6">
-      <Card>
+      <Card data-testid="profile-card">
         <CardHeader>
           <CardTitle className="text-lg">Profil finansowy</CardTitle>
           <CardDescription>Na jego podstawie przeliczamy ceny na godziny pracy.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ProfileForm key={String(loggedIn)} />
+          {/* profil z konta dociera chwilę po zalogowaniu, więc formularz odświeża się razem z nim */}
+          <ProfileForm key={JSON.stringify(profile)} />
         </CardContent>
       </Card>
 
-      {loggedIn ? (
-        <Card size="sm">
-          <CardContent className="flex items-center justify-between gap-3">
-            <div className="min-w-0 text-sm">
-              <p className="text-muted-foreground">Zalogowano jako</p>
-              <p className="truncate font-medium">{email}</p>
-            </div>
-            <Button variant="outline" className="h-11" onClick={logout}>
-              <LogOutIcon /> Wyloguj
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <AuthCard />
-      )}
+      <Card size="sm">
+        <CardContent className="flex items-center justify-between gap-3">
+          <div className="min-w-0 text-sm">
+            <p className="text-muted-foreground">Zalogowano jako</p>
+            <p className="truncate font-medium">{email}</p>
+          </div>
+          <Button variant="outline" className="h-11" onClick={logout}>
+            <LogOutIcon /> Wyloguj
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -77,7 +83,9 @@ function AuthCard() {
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">{register ? "Załóż konto" : "Zaloguj się"}</CardTitle>
-        <CardDescription>Konto jest potrzebne tylko do zapisywania historii i udostępniania wyników.</CardDescription>
+        <CardDescription>
+          Konto jest potrzebne tylko do zapisywania historii i udostępniania wyników. Profil finansowy zobaczysz tutaj po zalogowaniu.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={form.handleSubmit(submit)} noValidate className="grid gap-4">
