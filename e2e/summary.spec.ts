@@ -118,10 +118,10 @@ test("podsumowanie miesiąca (konto): liczby, kategorie, wybór miesiąca i eksp
   expect(await pick("Ten tydzień", "Pobierz CSV")).toBe("worthmytime-2026-10-05_2026-10-11.csv"); // 10.10.2026 to sobota
 
   await page.getByRole("radio", { name: "Własny zakres" }).click();
-  await page.getByLabel("Od").fill("2026-03-01");
-  await page.getByLabel("Do").fill("2026-02-01");
+  await page.getByLabel("Od", { exact: true }).fill("2026-03-01");
+  await page.getByLabel("Do", { exact: true }).fill("2026-02-01");
   await expect(page.getByTestId("export-range")).toContainText("nie może być późniejszy");
-  await page.getByLabel("Do").fill("2026-03-15");
+  await page.getByLabel("Do", { exact: true }).fill("2026-03-15");
   const started = page.waitForEvent("download");
   await page.getByRole("button", { name: "Pobierz CSV" }).click();
   expect((await started).suggestedFilename()).toBe("worthmytime-2026-03-01_2026-03-15.csv");
