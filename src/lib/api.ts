@@ -117,6 +117,30 @@ export interface ImportBatch {
   undone_at: string | null;
 }
 
+/** Wywiad o sytuacji życiowej (`GET/PUT /profile/context`); null = brak odpowiedzi. Kontekst dla podpowiedzi Jev. */
+export interface LifeContext {
+  housing: "WITH_PARENTS" | "RENT" | "OWN_MORTGAGE" | "OWN" | "OTHER" | null;
+  household_size: number | null;
+  children: number | null;
+  car: "NONE" | "OWN" | "FINANCED" | null;
+  car_age_years: number | null;
+  commute: "CAR" | "PUBLIC" | "BIKE_WALK" | "NONE" | null;
+  work_mode: "REMOTE" | "HYBRID" | "ONSITE" | "NOT_WORKING" | null;
+  employment: "EMPLOYEE" | "SELF_EMPLOYED" | "STUDENT" | "RETIRED" | "OTHER" | null;
+  phone_age_years: number | null;
+  computer_age_years: number | null;
+  has_emergency_fund: boolean | null;
+  has_pets: boolean | null;
+  notes: string | null;
+}
+
+export interface LifeContextState {
+  context: LifeContext;
+  /** zdania, którymi opisujemy użytkownika Jev */
+  summary: string[];
+  filled: boolean;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;
