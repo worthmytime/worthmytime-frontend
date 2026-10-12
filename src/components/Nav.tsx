@@ -2,6 +2,7 @@
 
 import {
   CalculatorIcon,
+  ClockIcon,
   EllipsisIcon,
   HeartIcon,
   HistoryIcon,
@@ -45,6 +46,7 @@ const primary: Item[] = [
 const more: Item[] = [
   { href: "/goals", label: "Cele", icon: TargetIcon },
   { href: "/compare", label: "Porównaj", icon: ScaleIcon },
+  { href: "/summary", label: "Podsumowanie", icon: ClockIcon },
   { href: "/history", label: "Historia", icon: HistoryIcon },
   { href: "/subscriptions", label: "Subskrypcje", icon: RepeatIcon },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },

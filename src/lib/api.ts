@@ -69,6 +69,37 @@ export interface MonthSummary {
   total: number;
 }
 
+/** Kategoria w podsumowaniu miesiąca: budżet, wydane i porównanie z poprzednim miesiącem. */
+export interface MonthReportCategory {
+  category: Category;
+  budget: number;
+  spent: number;
+  available: number;
+  usage_percent: number | null;
+  previous: number;
+  change: number;
+  change_percent: number | null; // null, gdy miesiąc wcześniej nie było wydatków
+}
+
+/** Podsumowanie miesiąca z `GET /reports/month`. */
+export interface MonthReport {
+  month: string; // YYYY-MM
+  previous_month: string;
+  currency: string;
+  monthly_income: number;
+  categories: MonthReportCategory[];
+  total_spent: number;
+  previous: number;
+  change: number;
+  change_percent: number | null;
+  /** future: wpisy w kategorii Przyszłość; unspent: dochód minus wszystkie wydatki (nie mniej niż 0) */
+  saved: { future: number; unspent: number };
+  /** wydatki uznaniowe (Cele i Przyjemności) i czas pracy, który na nie poszedł */
+  discretionary: { spent: number; work_hours: number | null };
+  largest_expense: { id: string; category: Category; amount: number; note: string | null; spent_on: string } | null;
+  entries: number;
+}
+
 export interface WishlistItem {
   id: string;
   name: string;
