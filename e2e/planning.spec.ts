@@ -339,7 +339,11 @@ test("lista życzeń: ostygnięcie, odpuszczenie i statystyka oszczędności", a
   await expect(ready.getByRole("button", { name: "Kupuję" })).toBeVisible();
   const waiting = page.getByTestId("wish-w2");
   await expect(waiting).toContainText("Jeszcze 25 dni ostygnięcia");
-  await expect(waiting.getByRole("button", { name: "Kupuję" })).toHaveCount(0); // kupić można dopiero po ostygnięciu
+  // kupić można dopiero po ostygnięciu: przycisk jest widoczny, ale nieaktywny, i mówi, kiedy się odblokuje
+  await expect(waiting.getByRole("button", { name: "Kupuję (za 25 dni)" })).toBeDisabled();
+  // licznik zaoszczędzonych widać od początku, jeszcze z zerem
+  await expect(page.getByTestId("wish-savings")).toContainText(/0,00\szł/);
+  await expect(page.getByTestId("wish-savings")).toContainText("Gdy odpuścisz coś z listy");
 
   await ready.getByRole("button", { name: "Odpuszczam" }).click();
   await expect(page.getByTestId("wish-savings")).toContainText("2 500,00");

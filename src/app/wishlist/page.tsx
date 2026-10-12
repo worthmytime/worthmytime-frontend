@@ -178,14 +178,21 @@ export default function WishlistPage() {
         </p>
       </div>
 
-      {stats && stats.dropped_count > 0 && (
+      {/* licznik widać od początku, także z zerem: mówi, po co jest lista, zanim cokolwiek odpuścimy */}
+      {stats && (
         <Card className="bg-gradient-to-br from-primary/15 via-card to-card" data-testid="wish-savings">
           <CardContent className="grid gap-1 text-center">
-            <p className="text-sm text-muted-foreground">Dzięki odpuszczeniu zaoszczędziłeś</p>
+            <p className="text-sm text-muted-foreground">Dzięki odpuszczeniu zostało Ci w kieszeni</p>
             <p className="text-3xl font-bold tabular-nums text-primary">{money(stats.dropped_total, currency)}</p>
             <p className="text-sm text-muted-foreground">
-              czyli <b className="text-foreground">{num(stats.dropped_hours, 1)} h</b> swojej pracy ({stats.dropped_count}{" "}
-              {stats.dropped_count === 1 ? "rzecz" : "rzeczy"})
+              {stats.dropped_count > 0 ? (
+                <>
+                  czyli <b className="text-foreground">{num(stats.dropped_hours, 1)} h</b> swojej pracy ({stats.dropped_count}{" "}
+                  {stats.dropped_count === 1 ? "rzecz" : "rzeczy"})
+                </>
+              ) : (
+                "Gdy odpuścisz coś z listy, zobaczysz tu, ile pieniędzy i godzin pracy to oszczędziło."
+              )}
             </p>
           </CardContent>
         </Card>
@@ -293,13 +300,18 @@ export default function WishlistPage() {
                   <Button variant="outline" className="h-10" onClick={() => decide(i, "DROPPED")}>
                     Odpuszczam
                   </Button>
-                  {i.ready && (
+                  {i.ready ? (
                     <Button
                       className="h-10"
                       aria-expanded={buying?.id === i.id}
                       onClick={() => setBuying(buying?.id === i.id ? null : { id: i.id, addExpense: true, category: i.category ?? "FUN" })}
                     >
                       Kupuję
+                    </Button>
+                  ) : (
+                    // przed końcem ostygnięcia przycisk jest widoczny, ale nieaktywny: wiadomo, że zakup da się oznaczyć i kiedy
+                    <Button className="h-10" disabled data-testid="buy-later">
+                      Kupuję (za {i.days_left} {i.days_left === 1 ? "dzień" : "dni"})
                     </Button>
                   )}
                 </div>
